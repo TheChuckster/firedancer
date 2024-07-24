@@ -25,6 +25,7 @@
 #include "../sysvar/fd_sysvar_clock.h"
 #include "../../vm/syscall/fd_vm_syscall.h"
 #include "../../nanopb/pb_decode.h"
+#include "../../nanopb/pb_encode.h"
 
 #pragma GCC diagnostic ignored "-Wformat-extra-args"
 
@@ -1810,15 +1811,22 @@ bool
 read_bytes_callback( pb_istream_t *stream,
                      const pb_field_t *field,
                      void **arg ){
- (void) field;
- bytes_region_t *bytes_region = (bytes_region_t *)*arg;
- bytes_region->size = stream->bytes_left;
- /* FIXME: does this leak? */
- bytes_region->bytes = fd_valloc_malloc( fd_scratch_virtual(), 1, bytes_region->size );
+  (void) field;
+  bytes_region_t *bytes_region = (bytes_region_t *)*arg;
+  bytes_region->size = stream->bytes_left;
+  /* CHECK: does this leak? */
+  bytes_region->bytes = fd_valloc_malloc( fd_scratch_virtual(), 1, bytes_region->size );
   if( !bytes_region->bytes ){
     return false;
   }
   return pb_read( stream, bytes_region->bytes, bytes_region->size );
+}
+
+bool
+write_bytes_callback( pb_ostream_t *stream, const pb_field_iter_t *field, void * const *arg ) {
+  if (!pb_encode_tag_for_field(stream, field)) return false;
+  bytes_region_t const *bytes_region = (bytes_region_t const *)*arg;
+  return pb_encode_string(stream, bytes_region->bytes_const, bytes_region->size);
 }
 
 ulong

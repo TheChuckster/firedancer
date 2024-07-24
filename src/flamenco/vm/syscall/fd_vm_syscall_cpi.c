@@ -10,20 +10,20 @@
 #include <errno.h>
 #include "../../nanopb/pb_encode.h"
 #include "../../runtime/tests/generated/vm_cpi.pb.h"
+#include "../../runtime/tests/fd_exec_instr_test.h"
 
 #define STRINGIFY(x) TOSTRING(x)
 #define TOSTRING(x) #x
 
-typedef struct{
-  pb_size_t size;
-  pb_byte_t const *bytes;
-} bytes_region_t;
-
-static inline bool
-write_bytes_callback( pb_ostream_t *stream, const pb_field_iter_t *field, void * const *arg ) {
-  if (!pb_encode_tag_for_field(stream, field)) return false;
-  bytes_region_t const *bytes_region = (bytes_region_t const *)*arg;
-  return pb_encode_string(stream, bytes_region->bytes, bytes_region->size);
+static inline void
+init_bytes_encode_callback( pb_callback_t * cb,
+                            bytes_region_t * region,
+                            pb_byte_t const* buf,
+                            ulong bufsz ) {
+  region->size = bufsz;
+  region->bytes_const = buf;
+  cb->arg = region;
+  cb->funcs.encode = write_bytes_callback;
 }
 
 static inline void
@@ -54,21 +54,18 @@ dump_vm_cpi_state(fd_vm_t *vm,
   cpi_snap.signers_seeds_va = signers_seeds_va;
   cpi_snap.signers_seeds_cnt = signers_seeds_cnt;
 
-  bytes_region_t ro_region = { .size = (pb_size_t) vm->rodata_sz, .bytes = vm->rodata };
-  cpi_snap.ro_region.arg = &ro_region;
-  cpi_snap.ro_region.funcs.encode = write_bytes_callback;
 
-  bytes_region_t stack_region = { .size = (pb_size_t) (vm->frame_cnt + 1)*FD_VM_STACK_GUARD_SZ*2, .bytes = vm->stack };
-  cpi_snap.stack.arg = &stack_region;
-  cpi_snap.stack.funcs.encode = write_bytes_callback;
+  bytes_region_t ro_region = {0};
+  init_bytes_encode_callback(&cpi_snap.ro_region, &ro_region, vm->rodata, vm->rodata_sz);
 
-  bytes_region_t heap_region = { .size = (pb_size_t) vm->instr_ctx->txn_ctx->heap_size, .bytes = vm->heap };
-  cpi_snap.heap.arg = &heap_region;
-  cpi_snap.heap.funcs.encode = write_bytes_callback;
+  bytes_region_t stack_region = {0};
+  init_bytes_encode_callback(&cpi_snap.stack, &stack_region, vm->stack, (vm->frame_cnt + 1)*FD_VM_STACK_GUARD_SZ*2);
 
-  bytes_region_t input_region = { .size = (pb_size_t) vm->input_sz, .bytes = vm->input };
-  cpi_snap.input_region.arg = &input_region;
-  cpi_snap.input_region.funcs.encode = write_bytes_callback;
+  bytes_region_t heap_region = {0};
+  init_bytes_encode_callback(&cpi_snap.heap, &heap_region, vm->heap, vm->instr_ctx->txn_ctx->heap_size);
+
+  bytes_region_t input_region = {0};
+  init_bytes_encode_callback(&cpi_snap.input_region, &input_region, vm->input, vm->input_sz);
   
   FD_SCRATCH_SCOPE_BEGIN{
     cpi_snap.has_instr_ctx = true;
