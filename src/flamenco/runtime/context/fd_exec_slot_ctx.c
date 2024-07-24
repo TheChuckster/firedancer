@@ -394,6 +394,7 @@ fd_exec_slot_ctx_free( fd_exec_slot_ctx_t * slot_ctx ) {
 
   /* leader points to a caller-allocated leader schedule */
 
-  fd_stake_rewards_vector_destroy( slot_ctx->epoch_reward_status.stake_rewards_by_partition );
+  /* FIXME: clean this up */
+  // fd_stake_rewards_vector_destroy( slot_ctx->epoch_reward_status.stake_rewards_by_partition );
   fd_exec_slot_ctx_delete( fd_exec_slot_ctx_leave( slot_ctx ) );
 }

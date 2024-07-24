@@ -3709,9 +3709,9 @@ void fd_process_new_epoch(
            "update_epoch_stakes",
        ); */
   if ( FD_FEATURE_ACTIVE( slot_ctx, enable_partitioned_epoch_reward ) ) {
-    fd_begin_partitioned_rewards( slot_ctx, parent_epoch );
+    fd_begin_partitioned_rewards( slot_ctx, &slot_ctx->slot_bank.banks_hash, parent_epoch );
   } else {
-    fd_update_rewards( slot_ctx, parent_epoch );
+    fd_update_rewards( slot_ctx, &slot_ctx->slot_bank.banks_hash, parent_epoch );
   }
 
   fd_update_stake_delegations( slot_ctx );
