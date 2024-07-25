@@ -59,18 +59,26 @@ dump_vm_cpi_state(fd_vm_t *vm,
   init_bytes_encode_callback(&cpi_snap.ro_region, &ro_region, vm->rodata, vm->rodata_sz);
 
   bytes_region_t stack_region = {0};
-  init_bytes_encode_callback(&cpi_snap.stack, &stack_region, vm->stack, (vm->frame_cnt + 1)*FD_VM_STACK_GUARD_SZ*2);
+  init_bytes_encode_callback( &cpi_snap.stack,
+                              &stack_region,
+                              vm->stack,
+                              (vm->frame_cnt + 1)*FD_VM_STACK_GUARD_SZ*2 );
 
   bytes_region_t heap_region = {0};
-  init_bytes_encode_callback(&cpi_snap.heap, &heap_region, vm->heap, vm->instr_ctx->txn_ctx->heap_size);
+  init_bytes_encode_callback( &cpi_snap.heap,
+                              &heap_region, 
+                              vm->heap, 
+                              vm->instr_ctx->txn_ctx->heap_size );
 
   bytes_region_t input_region = {0};
   init_bytes_encode_callback(&cpi_snap.input_region, &input_region, vm->input, vm->input_sz);
   
   FD_SCRATCH_SCOPE_BEGIN{
     cpi_snap.has_instr_ctx = true;
-    fd_create_instr_context_protobuf_from_instructions( &cpi_snap.instr_ctx, vm->instr_ctx->txn_ctx, vm->instr_ctx->instr );
-    size_t pb_alloc_size = 1024 * 1024 * 1024;
+    fd_create_instr_context_protobuf_from_instructions( &cpi_snap.instr_ctx, 
+                                                        vm->instr_ctx->txn_ctx,
+                                                        vm->instr_ctx->instr );
+    size_t pb_alloc_size = 100 * 1024 * 1024; // 100MB (largest so far is 19MB)
     FILE *f = fopen(filename, "wb+");
     if (ftruncate(fileno(f), (off_t) pb_alloc_size) != 0) {
       FD_LOG_WARNING(("Failed to resize file %s", filename));
