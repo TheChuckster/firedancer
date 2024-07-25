@@ -633,7 +633,8 @@ calculate_stake_vote_rewards(
         }
         if ( !fd_stake_state_v2_is_stake( stake_state ) ) {
             /* TODO: what is the correct behaviour here? */
-            FD_LOG_ERR(( "stake account does not have active delegation" ));
+            FD_LOG_DEBUG(( "stake account does not have active delegation" ));
+            continue;
         }
         fd_pubkey_t const * voter_acc = &stake_state->inner.stake.stake.delegation.voter_pubkey;
 
