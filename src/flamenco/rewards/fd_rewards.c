@@ -475,6 +475,8 @@ calculate_reward_points_partitioned(
         } FD_SCRATCH_SCOPE_END;
     }
 
+    /* FIXME: do we need to also calculate points for each stake account in the slot_bank.stake_account_keys.stake_accounts_pool */
+
     if (points > 0) {
         result->points = points;
         result->rewards = rewards;
@@ -483,23 +485,34 @@ calculate_reward_points_partitioned(
     }
 }
 
-/* Calculate the partitioned stake rewards for a single stake/vote account, 
-   updates result with these. */
+/* Calculate the partitioned stake rewards for a single stake/vote account pair, updates result with these. */
 static void
 calculate_stake_vote_rewards_account(
     fd_exec_slot_ctx_t *                        slot_ctx,
     fd_stake_history_t const *                  stake_history,
     ulong                                       rewarded_epoch,
     fd_point_value_t *                          point_value,
-    fd_pubkey_t const *                         voter_acc,
     fd_pubkey_t const *                         stake_acc,
-    fd_borrowed_account_t *                     stake_acc_rec,
-    fd_stake_state_v2_t *                       stake_state,
     fd_acc_lamports_t *                         total_stake_rewards,
     fd_calculate_stake_vote_rewards_result_t *  result
 ) {
     fd_epoch_bank_t const * epoch_bank = fd_exec_epoch_ctx_epoch_bank( slot_ctx->epoch_ctx );
     ulong minimum_stake_delegation = get_minimum_stake_delegation( slot_ctx );
+
+    FD_BORROWED_ACCOUNT_DECL( stake_acc_rec );
+    if( fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, stake_acc, stake_acc_rec) != 0 ) {
+        FD_LOG_ERR(( "Stake acc not found %32J", stake_acc->uc ));
+    }
+
+    fd_stake_state_v2_t stake_state[1] = {0};
+    if ( fd_stake_get_state( stake_acc_rec, &slot_ctx->valloc, stake_state ) != 0 ) {
+        FD_LOG_ERR(( "Failed to read stake state from stake account %32J", stake_acc ));
+    }
+    if ( !fd_stake_state_v2_is_stake( stake_state ) ) {
+        FD_LOG_DEBUG(( "stake account does not have active delegation" ));
+        return;
+    }
+    fd_pubkey_t const * voter_acc = &stake_state->inner.stake.stake.delegation.voter_pubkey;
 
     if ( FD_FEATURE_ACTIVE(slot_ctx, stake_minimum_delegation_for_rewards )) {
       if ( stake_state->inner.stake.stake.delegation.stake < minimum_stake_delegation ) {
@@ -622,36 +635,31 @@ calculate_stake_vote_rewards(
     ) {
         fd_pubkey_t const * stake_acc = &n->elem.account;
 
-        FD_BORROWED_ACCOUNT_DECL( stake_acc_rec );
-        if( fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, stake_acc, stake_acc_rec) != 0 ) {
-            FD_LOG_ERR(( "Stake acc not found %32J", stake_acc->uc ));
-        }
-
-        fd_stake_state_v2_t stake_state[1] = {0};
-        if ( fd_stake_get_state( stake_acc_rec, &slot_ctx->valloc, stake_state ) != 0 ) {
-            FD_LOG_ERR(( "Failed to read stake state from stake account %32J", stake_acc ));
-        }
-        if ( !fd_stake_state_v2_is_stake( stake_state ) ) {
-            /* TODO: what is the correct behaviour here? */
-            FD_LOG_DEBUG(( "stake account does not have active delegation" ));
-            continue;
-        }
-        fd_pubkey_t const * voter_acc = &stake_state->inner.stake.stake.delegation.voter_pubkey;
-
         calculate_stake_vote_rewards_account(
             slot_ctx,
             stake_history,
             rewarded_epoch,
             point_value,
-            voter_acc,
             stake_acc,
-            stake_acc_rec,
-            stake_state,
             &result->stake_reward_calculation.total_stake_rewards_lamports,
             result );
     }
 
-    /* TODO: do we also need to loop over the stake accounts in the slot_bank.stake_account_keys.stake_accounts_pool ? I think we probably don't as these only change at epoch boundaries */
+    /* Loop over all the stake accounts in the slot bank pool */
+    for ( fd_stake_accounts_pair_t_mapnode_t const * n = fd_stake_accounts_pair_t_map_minimum_const( slot_ctx->slot_bank.stake_account_keys.stake_accounts_pool, slot_ctx->slot_bank.stake_account_keys.stake_accounts_root );
+         n;
+         n = fd_stake_accounts_pair_t_map_successor_const( slot_ctx->slot_bank.stake_account_keys.stake_accounts_pool, n) ) {
+
+        fd_pubkey_t const * stake_acc = &n->elem.key;
+        calculate_stake_vote_rewards_account(
+            slot_ctx,
+            stake_history,
+            rewarded_epoch,
+            point_value,
+            stake_acc,
+            &result->stake_reward_calculation.total_stake_rewards_lamports,
+            result );
+    }
 }
 
 /* Calculate epoch reward and return vote and stake rewards.
