@@ -364,7 +364,7 @@ vote_balance_and_staked( fd_exec_slot_ctx_t * slot_ctx, fd_stakes_t const * stak
 static ulong
 get_minimum_stake_delegation( fd_exec_slot_ctx_t * slot_ctx ) {
     if ( !FD_FEATURE_ACTIVE( slot_ctx, stake_minimum_delegation_for_rewards ) ) {
-        return ULONG_MAX;
+        return 0UL;
     }
 
     if ( !FD_FEATURE_ACTIVE( slot_ctx, stake_raise_minimum_delegation_to_1_sol ) ) {
@@ -475,7 +475,89 @@ calculate_reward_points_partitioned(
         } FD_SCRATCH_SCOPE_END;
     }
 
-    /* FIXME: do we need to also calculate points for each stake account in the slot_bank.stake_account_keys.stake_accounts_pool */
+    /* FIXME: factor this out */
+    /* Calculate points for each stake account in slot_bank.stake_account_keys.stake_accounts_pool */
+    for ( fd_stake_accounts_pair_t_mapnode_t const * n = fd_stake_accounts_pair_t_map_minimum_const( slot_ctx->slot_bank.stake_account_keys.stake_accounts_pool, slot_ctx->slot_bank.stake_account_keys.stake_accounts_root );
+          n;
+          n = fd_stake_accounts_pair_t_map_successor_const( slot_ctx->slot_bank.stake_account_keys.stake_accounts_pool, n ) ) {
+
+        FD_SCRATCH_SCOPE_BEGIN {
+            fd_valloc_t valloc = fd_scratch_virtual();
+
+            /* Fetch the stake account */
+            FD_BORROWED_ACCOUNT_DECL(stake_acc_rec);
+            fd_pubkey_t const * stake_acc = &n->elem.key;
+            int err = fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, stake_acc, stake_acc_rec);
+            if ( err != FD_ACC_MGR_SUCCESS && err != FD_ACC_MGR_ERR_UNKNOWN_ACCOUNT ) {
+                FD_LOG_ERR(( "failed to read stake account from funk" ));
+                continue;
+            }
+            if ( err == FD_ACC_MGR_ERR_UNKNOWN_ACCOUNT ) {
+                FD_LOG_DEBUG(( "stake account not found %32J", stake_acc->uc ));
+                continue;
+            }
+            if ( stake_acc_rec->const_meta->info.lamports == 0 ) {
+                FD_LOG_DEBUG(( "stake acc with zero lamports %32J", stake_acc->uc));
+                continue;
+            }
+
+            /* Check the minimum stake delegation */
+            fd_stake_state_v2_t stake_state[1] = {0};
+            err = fd_stake_get_state( stake_acc_rec, &valloc, stake_state );
+            if ( err != 0 ) {
+                FD_LOG_DEBUG(( "get stake state failed" ));
+                continue;
+            }
+            if ( FD_UNLIKELY( stake_state->inner.stake.stake.delegation.stake < minimum_stake_delegation ) ) {
+                continue;
+            }
+
+            /* Check that the vote account is present in our cache */
+            fd_vote_accounts_pair_t_mapnode_t key;
+            fd_pubkey_t const * voter_acc = &stake_state->inner.stake.stake.delegation.voter_pubkey;
+            fd_memcpy( &key.elem.key, voter_acc, sizeof(fd_pubkey_t) );
+            fd_epoch_bank_t const * epoch_bank = fd_exec_epoch_ctx_epoch_bank( 
+                slot_ctx->epoch_ctx );
+            if ( FD_UNLIKELY( fd_vote_accounts_pair_t_map_find( 
+                epoch_bank->stakes.vote_accounts.vote_accounts_pool,
+                epoch_bank->stakes.vote_accounts.vote_accounts_root,
+                &key ) == NULL ) ) {
+                FD_LOG_DEBUG(( "vote account missing from cache" ));
+                continue;
+            }
+
+            /* Check that the vote account is valid and has the correct owner */
+            FD_BORROWED_ACCOUNT_DECL(voter_acc_rec);
+            err = fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, voter_acc, voter_acc_rec );
+            if ( FD_UNLIKELY( err ) ) {
+                FD_LOG_DEBUG(( "failed to read vote account from funk" ));
+                continue;
+            }
+            if( FD_UNLIKELY( memcmp( &voter_acc_rec->const_meta->info.owner, fd_solana_vote_program_id.key, sizeof(fd_pubkey_t) ) != 0 ) ) {
+                FD_LOG_DEBUG(( "vote account has wrong owner" ));
+                continue;
+            }
+            fd_bincode_decode_ctx_t decode = {
+                .data    = voter_acc_rec->const_data,
+                .dataend = voter_acc_rec->const_data + voter_acc_rec->const_meta->dlen,
+                .valloc  = valloc,
+            };
+            fd_vote_state_versioned_t vote_state[1] = {0};
+            if( FD_UNLIKELY( 0!=fd_vote_state_versioned_decode( vote_state, &decode ) ) ) {
+                FD_LOG_DEBUG(( "vote_state_versioned_decode failed" ));
+                continue;
+            }
+
+            uint128 account_points;
+            err = calculate_points( stake_state, vote_state, stake_history, &account_points );
+            if ( FD_UNLIKELY( err ) ) {
+                FD_LOG_DEBUG(( "failed to calculate points" ));
+                continue;
+            }
+
+            points += account_points;
+        } FD_SCRATCH_SCOPE_END;
+    }
 
     if (points > 0) {
         result->points = points;
