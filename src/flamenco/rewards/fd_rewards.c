@@ -519,12 +519,14 @@ calculate_stake_vote_rewards_account(
 
     FD_BORROWED_ACCOUNT_DECL( stake_acc_rec );
     if( fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, stake_acc, stake_acc_rec) != 0 ) {
-        FD_LOG_ERR(( "Stake acc not found %32J", stake_acc->uc ));
+        FD_LOG_DEBUG(( "Stake acc not found %32J", stake_acc->uc ));
+        return;
     }
 
     fd_stake_state_v2_t stake_state[1] = {0};
     if ( fd_stake_get_state( stake_acc_rec, &slot_ctx->valloc, stake_state ) != 0 ) {
-        FD_LOG_ERR(( "Failed to read stake state from stake account %32J", stake_acc ));
+        FD_LOG_DEBUG(( "Failed to read stake state from stake account %32J", stake_acc ));
+        return;
     }
     if ( !fd_stake_state_v2_is_stake( stake_state ) ) {
         FD_LOG_DEBUG(( "stake account does not have active delegation" ));
