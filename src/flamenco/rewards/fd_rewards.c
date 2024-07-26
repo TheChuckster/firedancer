@@ -299,67 +299,6 @@ calculate_previous_epoch_inflation_rewards(
     FD_LOG_DEBUG(("Rewards %lu, Rate %.16f, Duration %.18f Capitalization %lu Slot in year %.16f", rewards->validator_rewards, rewards->validator_rate, rewards->prev_epoch_duration_in_years, prev_epoch_capitalization, slot_in_year));
 }
 
-
-/* Sum the lamports of the vote accounts and the delegated stake
-
-   https://github.com/anza-xyz/agave/blob/7117ed9653ce19e8b2dea108eff1f3eb6a3378a7/runtime/src/stakes.rs#L360 */
-static ulong
-vote_balance_and_staked( fd_exec_slot_ctx_t * slot_ctx, fd_stakes_t const * stakes) {
-    ulong result = 0;
-    for( fd_vote_accounts_pair_t_mapnode_t const * n = fd_vote_accounts_pair_t_map_minimum_const( stakes->vote_accounts.vote_accounts_pool, stakes->vote_accounts.vote_accounts_root );
-         n;
-         n = fd_vote_accounts_pair_t_map_successor_const( stakes->vote_accounts.vote_accounts_pool, n ) ) {
-        result += n->elem.value.lamports;
-    }
-
-    for( fd_vote_accounts_pair_t_mapnode_t const * n = fd_vote_accounts_pair_t_map_minimum_const( slot_ctx->slot_bank.vote_account_keys.vote_accounts_pool, slot_ctx->slot_bank.vote_account_keys.vote_accounts_root );
-         n;
-         n = fd_vote_accounts_pair_t_map_successor_const( slot_ctx->slot_bank.vote_account_keys.vote_accounts_pool, n ) ) {
-        result += n->elem.value.lamports;
-    }
-
-    for( fd_delegation_pair_t_mapnode_t const * n = fd_delegation_pair_t_map_minimum_const( stakes->stake_delegations_pool, stakes->stake_delegations_root );
-         n;
-         n = fd_delegation_pair_t_map_successor_const( stakes->stake_delegations_pool, n ) ) {
-        fd_pubkey_t const * stake_acc = &n->elem.account;
-        FD_BORROWED_ACCOUNT_DECL(stake_acc_rec);
-        if (fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, stake_acc, stake_acc_rec ) != FD_ACC_MGR_SUCCESS  ) {
-            continue;
-        }
-
-        fd_stake_state_v2_t stake_state;
-        if (fd_stake_get_state( stake_acc_rec, &slot_ctx->valloc, &stake_state) != 0) {
-            continue;
-        }
-        if ( FD_UNLIKELY( !fd_stake_state_v2_is_stake( &stake_state ) ) ) {
-            continue;
-        }
-
-        result += stake_state.inner.stake.stake.delegation.stake;
-    }
-
-    for( fd_stake_accounts_pair_t_mapnode_t const * n = fd_stake_accounts_pair_t_map_minimum_const( slot_ctx->slot_bank.stake_account_keys.stake_accounts_pool, slot_ctx->slot_bank.stake_account_keys.stake_accounts_root );
-         n;
-         n = fd_stake_accounts_pair_t_map_successor_const( slot_ctx->slot_bank.stake_account_keys.stake_accounts_pool, n ) ) {
-        fd_pubkey_t const * stake_acc = &n->elem.key;
-        FD_BORROWED_ACCOUNT_DECL(stake_acc_rec);
-        if ( fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, stake_acc, stake_acc_rec ) != FD_ACC_MGR_SUCCESS ) {
-            continue;
-        }
-        fd_stake_state_v2_t stake_state;
-        if ( fd_stake_get_state( stake_acc_rec, &slot_ctx->valloc, &stake_state) != 0 ) {
-            continue;
-        }
-        if ( FD_UNLIKELY( !fd_stake_state_v2_is_stake( &stake_state ) ) ) {
-            continue;
-        }
-
-        result += stake_state.inner.stake.stake.delegation.stake;
-    }
-
-    return result;
-}
-
 /* https://github.com/anza-xyz/agave/blob/cbc8320d35358da14d79ebcada4dfb6756ffac79/programs/stake/src/lib.rs#L29 */
 static ulong
 get_minimum_stake_delegation( fd_exec_slot_ctx_t * slot_ctx ) {
@@ -928,27 +867,18 @@ calculate_rewards_and_distribute_vote_rewards(
         FD_TEST( fd_acc_mgr_modify( slot_ctx->acc_mgr, slot_ctx->funk_txn, vote_pubkey, 1, 0UL, vote_rec ) == FD_ACC_MGR_SUCCESS );
 
         FD_TEST( fd_borrowed_account_checked_add_lamports( vote_rec, vote_reward_node->elem.vote_rewards ) == 0 );
+        result->distributed_rewards = fd_ulong_sat_add( result->distributed_rewards, vote_reward_node->elem.vote_rewards );
 
         next_vote_reward_node = fd_vote_reward_t_map_successor( rewards_calc_result->vote_reward_map_pool, vote_reward_node );
       
         /* TODO: delete vote reward node */
     }
 
-    // This is for vote rewards only.
-    fd_epoch_bank_t * epoch_bank = fd_exec_epoch_ctx_epoch_bank( slot_ctx->epoch_ctx );
-
-    /* TODO: make sure this works for the vote accounts */
-    ulong new_vote_balance_and_staked = vote_balance_and_staked( slot_ctx, &epoch_bank->stakes );
-    ulong validator_rewards_paid = fd_ulong_sat_sub( new_vote_balance_and_staked, rewards_calc_result->old_vote_balance_and_staked );
-
     // verify that we didn't pay any more than we expected to
-    result->total_rewards = fd_ulong_sat_add( validator_rewards_paid,  rewards_calc_result->stake_rewards_by_partition.total_stake_rewards_lamports );
+    result->total_rewards = fd_ulong_sat_add( result->distributed_rewards, rewards_calc_result->stake_rewards_by_partition.total_stake_rewards_lamports );
     FD_TEST( rewards_calc_result->validator_rewards >= result->total_rewards );
 
-    slot_ctx->slot_bank.capitalization += validator_rewards_paid;
-
-    result->distributed_rewards = validator_rewards_paid;
-
+    slot_ctx->slot_bank.capitalization += result->distributed_rewards;
     result->stake_rewards_by_partition = rewards_calc_result->stake_rewards_by_partition;
     result->total_points = rewards_calc_result->total_points;
 }
@@ -1031,6 +961,7 @@ distribute_epoch_rewards_in_partition(
 
     FD_LOG_DEBUG(( "lamports burned: %lu, lamports distributed: %lu", lamports_burned, lamports_distributed ));
 
+    slot_ctx->slot_bank.capitalization += lamports_distributed;
 }
 
 /* Process reward distribution for the block if it is inside reward interval.
