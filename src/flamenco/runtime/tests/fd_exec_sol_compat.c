@@ -24,6 +24,11 @@ typedef struct {
   ulong   supported_feature_cnt;
 } sol_compat_features_t;
 
+typedef struct {
+  uint16_t validator_type;
+} sol_compat_metadata_t;
+
+static sol_compat_metadata_t metadata = { .validator_type = 1 /* Firedancer */ };
 static sol_compat_features_t features;
 static ulong cleaned_up_features[] =
   { 0xd924059c5749c4c1,  // secp256k1_program_enabled
@@ -109,6 +114,11 @@ sol_compat_check_wksp_usage( void ) {
 sol_compat_features_t const *
 sol_compat_get_features_v1( void ) {
   return &features;
+}
+
+sol_compat_metadata_t const *
+sol_compat_get_metadata_v1( void ) {
+  return &metadata;
 }
 
 fd_exec_instr_test_runner_t *
