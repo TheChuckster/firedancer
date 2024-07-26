@@ -809,7 +809,6 @@ calculate_rewards_for_partitioning(
 
     fd_epoch_bank_t const * epoch_bank = fd_exec_epoch_ctx_epoch_bank( slot_ctx->epoch_ctx );
     fd_slot_bank_t const * slot_bank = &slot_ctx->slot_bank;
-    ulong old_vote_balance_and_staked = vote_balance_and_staked( slot_ctx, &epoch_bank->stakes );
 
     fd_calculate_validator_rewards_result_t validator_result[1] = {0};
     calculate_validator_rewards( slot_ctx, prev_epoch, rewards.validator_rewards, validator_result );
@@ -831,7 +830,6 @@ calculate_rewards_for_partitioning(
 
     result->vote_reward_map_pool = validator_result->calculate_stake_vote_rewards_result.vote_reward_map_pool;
     result->vote_reward_map_root = validator_result->calculate_stake_vote_rewards_result.vote_reward_map_root;
-    result->old_vote_balance_and_staked = old_vote_balance_and_staked;
     result->validator_rewards = rewards.validator_rewards;
     result->validator_rate = rewards.validator_rate;
     result->foundation_rate = rewards.foundation_rate;
@@ -865,6 +863,7 @@ calculate_rewards_and_distribute_vote_rewards(
         fd_pubkey_t const * vote_pubkey = &vote_reward_node->elem.pubkey;
         FD_BORROWED_ACCOUNT_DECL( vote_rec );
         FD_TEST( fd_acc_mgr_modify( slot_ctx->acc_mgr, slot_ctx->funk_txn, vote_pubkey, 1, 0UL, vote_rec ) == FD_ACC_MGR_SUCCESS );
+        vote_rec->meta->slot = slot_ctx->slot_bank.slot;
 
         FD_TEST( fd_borrowed_account_checked_add_lamports( vote_rec, vote_reward_node->elem.vote_rewards ) == 0 );
         result->distributed_rewards = fd_ulong_sat_add( result->distributed_rewards, vote_reward_node->elem.vote_rewards );
@@ -894,6 +893,7 @@ distribute_epoch_reward_to_stake_acc(
 
     FD_BORROWED_ACCOUNT_DECL( stake_acc_rec );
     FD_TEST( fd_acc_mgr_modify( slot_ctx->acc_mgr, slot_ctx->funk_txn, stake_pubkey, 0, 0UL, stake_acc_rec ) == FD_ACC_MGR_SUCCESS );
+    stake_acc_rec->meta->slot = slot_ctx->slot_bank.slot;
 
     fd_stake_state_v2_t stake_state[1] = {0};
     if ( fd_stake_get_state(stake_acc_rec, &slot_ctx->valloc, stake_state) != 0 ) {
