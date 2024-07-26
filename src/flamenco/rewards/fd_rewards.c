@@ -562,8 +562,6 @@ calculate_reward_points_partitioned(
     if (points > 0) {
         result->points = points;
         result->rewards = rewards;
-    } else {
-        result = NULL;
     }
 }
 
@@ -575,7 +573,6 @@ calculate_stake_vote_rewards_account(
     ulong                                       rewarded_epoch,
     fd_point_value_t *                          point_value,
     fd_pubkey_t const *                         stake_acc,
-    fd_acc_lamports_t *                         total_stake_rewards,
     fd_calculate_stake_vote_rewards_result_t *  result
 ) {
     fd_epoch_bank_t const * epoch_bank = fd_exec_epoch_ctx_epoch_bank( slot_ctx->epoch_ctx );
@@ -669,8 +666,8 @@ calculate_stake_vote_rewards_account(
         );
     }
 
-    /* Track the total stake rewards */
-    *total_stake_rewards += calculated_stake_rewards->staker_rewards;
+    /* Update the total stake rewards */
+    result->stake_reward_calculation.total_stake_rewards_lamports += calculated_stake_rewards->staker_rewards;
 
     /* Add the partitioned stake reward to the partitioned stake reward  */
     fd_partitioned_stake_reward_t partitioned_stake_reward;
@@ -683,6 +680,9 @@ calculate_stake_vote_rewards_account(
     };
     /* TODO: avoid this copy by keeping a reference around? */
     fd_memcpy( &partitioned_stake_reward.stake, &stake_state->inner.stake.stake, FD_STAKE_FOOTPRINT );
+
+    /* TODO: only copy the new credits observed, not the whole stake */
+    partitioned_stake_reward.stake.credits_observed = calculated_stake_rewards->new_credits_observed;
 
     /* TODO: use zero-copy API to push to queue */
     deq_fd_partitioned_stake_reward_t_push_tail( result->stake_reward_calculation.stake_reward_deq, partitioned_stake_reward );
@@ -715,6 +715,7 @@ calculate_stake_vote_rewards(
          n;
          n = fd_delegation_pair_t_map_successor_const( epoch_bank->stakes.stake_delegations_pool, n )
     ) {
+        /* FIXME: this seems to be doing a large number of iterations? */
         fd_pubkey_t const * stake_acc = &n->elem.account;
 
         calculate_stake_vote_rewards_account(
@@ -723,7 +724,6 @@ calculate_stake_vote_rewards(
             rewarded_epoch,
             point_value,
             stake_acc,
-            &result->stake_reward_calculation.total_stake_rewards_lamports,
             result );
     }
 
@@ -739,7 +739,6 @@ calculate_stake_vote_rewards(
             rewarded_epoch,
             point_value,
             stake_acc,
-            &result->stake_reward_calculation.total_stake_rewards_lamports,
             result );
     }
 }
@@ -849,7 +848,9 @@ hash_rewards_into_partitions(
         );
 
         /* FIXME: avoid this copy */
-        result->stake_rewards_by_partition.stake_rewards_by_partition[ partition_index ].partition[ result->stake_rewards_by_partition.stake_rewards_by_partition[ num_partitions ].partition_len++ ] = *ele;
+        fd_partitioned_stake_rewards_t * partition = &result->stake_rewards_by_partition.stake_rewards_by_partition[ partition_index ];
+        partition->partition[ partition->partition_len ] = *ele;
+        partition->partition_len++;
     }
 }
 
@@ -956,8 +957,9 @@ calculate_rewards_and_distribute_vote_rewards(
 static int
 distribute_epoch_reward_to_stake_acc( 
     fd_exec_slot_ctx_t * slot_ctx,
-    fd_pubkey_t * stake_pubkey,
-    ulong reward_lamports
+    fd_pubkey_t *        stake_pubkey,
+    ulong                reward_lamports,
+    ulong                new_credits_observed
  ) {
 
     FD_BORROWED_ACCOUNT_DECL( stake_acc_rec );
@@ -979,10 +981,15 @@ distribute_epoch_reward_to_stake_acc(
         return 1;
     }
 
+    stake_state->inner.stake.stake.credits_observed = new_credits_observed;
     stake_state->inner.stake.stake.delegation.stake = fd_ulong_sat_add(
         stake_state->inner.stake.stake.delegation.stake,
         reward_lamports
     );
+
+    if ( FD_UNLIKELY( write_stake_state( stake_acc_rec, stake_state ) != 0 ) ) {
+        FD_LOG_ERR(( "write_stake_state failed" ));
+    }
 
     return 0;
 }
@@ -1008,8 +1015,9 @@ distribute_epoch_rewards_in_partition(
     for ( ulong i = 0; i < this_partition_stake_rewards->partition_len; i++ ) {
         fd_partitioned_stake_reward_t * partitioned_reward = &this_partition_stake_rewards->partition[ i ];
         ulong reward_amount = partitioned_reward->stake_reward_info.lamports;
+        ulong new_credits_observed = partitioned_reward->stake.credits_observed;
 
-        if ( distribute_epoch_reward_to_stake_acc( slot_ctx, &partitioned_reward->stake_pubkey, reward_amount ) == 0 ) {
+        if ( distribute_epoch_reward_to_stake_acc( slot_ctx, &partitioned_reward->stake_pubkey, reward_amount, new_credits_observed ) == 0 ) {
             lamports_distributed += reward_amount;
         } else {
             lamports_burned += reward_amount;
