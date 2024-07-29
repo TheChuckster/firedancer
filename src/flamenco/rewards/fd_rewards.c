@@ -576,16 +576,17 @@ calculate_stake_vote_rewards_account(
         }
 
         /* Fetch the comission for the vote account */
-        ulong * commission = fd_valloc_malloc( slot_ctx->valloc, 1UL, 1UL );
+        ulong * commission = fd_valloc_malloc( slot_ctx->valloc, 8UL, 8UL ); /* FIXME: change this to uchar? */
+        *commission = 0UL;
         switch (vote_state_versioned->discriminant) {
             case fd_vote_state_versioned_enum_current:
-                *commission = (uchar)vote_state_versioned->inner.current.commission;
+                *commission += (uchar)vote_state_versioned->inner.current.commission;
                 break;
             case fd_vote_state_versioned_enum_v0_23_5:
-                *commission = (uchar)vote_state_versioned->inner.v0_23_5.commission;
+                *commission += (uchar)vote_state_versioned->inner.v0_23_5.commission;
                 break;
             case fd_vote_state_versioned_enum_v1_14_11:
-                *commission = (uchar)vote_state_versioned->inner.v1_14_11.commission;
+                *commission += (uchar)vote_state_versioned->inner.v1_14_11.commission;
                 break;
             default:
                 FD_LOG_DEBUG(( "unsupported vote account" ));
