@@ -159,9 +159,9 @@ calculate_stake_points_and_credits (
         ulong initial_epoch_credits = ele->prev_credits;
         uint128 earned_credits = 0;
         if ( FD_LIKELY( credits_in_stake < initial_epoch_credits ) ) {
-        earned_credits = (uint128)(final_epoch_credits - initial_epoch_credits);
+            earned_credits = (uint128)(final_epoch_credits - initial_epoch_credits);
         } else if ( FD_UNLIKELY( credits_in_stake < final_epoch_credits ) ) {
-        earned_credits = (uint128)(final_epoch_credits - new_credits_observed);
+            earned_credits = (uint128)(final_epoch_credits - new_credits_observed);
         }
 
         new_credits_observed = fd_ulong_max( new_credits_observed, final_epoch_credits );
@@ -514,119 +514,124 @@ calculate_stake_vote_rewards_account(
     fd_pubkey_t const *                         stake_acc,
     fd_calculate_stake_vote_rewards_result_t *  result
 ) {
-    fd_epoch_bank_t const * epoch_bank = fd_exec_epoch_ctx_epoch_bank( slot_ctx->epoch_ctx );
-    ulong minimum_stake_delegation = get_minimum_stake_delegation( slot_ctx );
+    FD_SCRATCH_SCOPE_BEGIN {
 
-    FD_BORROWED_ACCOUNT_DECL( stake_acc_rec );
-    if( fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, stake_acc, stake_acc_rec) != 0 ) {
-        FD_LOG_DEBUG(( "Stake acc not found %32J", stake_acc->uc ));
-        return;
-    }
+        fd_epoch_bank_t const * epoch_bank = fd_exec_epoch_ctx_epoch_bank( slot_ctx->epoch_ctx );
+        ulong minimum_stake_delegation = get_minimum_stake_delegation( slot_ctx );
 
-    fd_stake_state_v2_t stake_state[1] = {0};
-    if ( fd_stake_get_state( stake_acc_rec, &slot_ctx->valloc, stake_state ) != 0 ) {
-        FD_LOG_DEBUG(( "Failed to read stake state from stake account %32J", stake_acc ));
-        return;
-    }
-    if ( !fd_stake_state_v2_is_stake( stake_state ) ) {
-        FD_LOG_DEBUG(( "stake account does not have active delegation" ));
-        return;
-    }
-    fd_pubkey_t const * voter_acc = &stake_state->inner.stake.stake.delegation.voter_pubkey;
-
-    if ( FD_FEATURE_ACTIVE(slot_ctx, stake_minimum_delegation_for_rewards )) {
-      if ( stake_state->inner.stake.stake.delegation.stake < minimum_stake_delegation ) {
-        return;
-      }
-    }
-
-    fd_vote_accounts_pair_t_mapnode_t key;
-    fd_memcpy( &key.elem.key, voter_acc, sizeof(fd_pubkey_t) );
-    if ( fd_vote_accounts_pair_t_map_find( epoch_bank->stakes.vote_accounts.vote_accounts_pool, epoch_bank->stakes.vote_accounts.vote_accounts_root, &key ) == NULL
-        && fd_vote_accounts_pair_t_map_find( slot_ctx->slot_bank.vote_account_keys.vote_accounts_pool, slot_ctx->slot_bank.vote_account_keys.vote_accounts_root, &key ) == NULL) {
-      return;
-    }
-
-    FD_BORROWED_ACCOUNT_DECL( voter_acc_rec );
-    int read_err = fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, voter_acc, voter_acc_rec );
-    if( read_err!=0 || memcmp( &voter_acc_rec->const_meta->info.owner, fd_solana_vote_program_id.key, sizeof(fd_pubkey_t) ) != 0 ) {
-      return;
-    }
-
-    fd_valloc_t valloc = fd_scratch_virtual();
-    fd_bincode_decode_ctx_t decode = {
-        .data    = voter_acc_rec->const_data,
-        .dataend = voter_acc_rec->const_data + voter_acc_rec->const_meta->dlen,
-        .valloc  = valloc,
-    };
-    fd_vote_state_versioned_t vote_state_versioned[1] = {0};
-    if( fd_vote_state_versioned_decode( vote_state_versioned, &decode ) != 0 ) {
-      return;
-    }
-
-    /* Note, this doesn't actually redeem any rewards.. this is a misnomer. */
-    fd_calculated_stake_rewards_t calculated_stake_rewards[1] = {0};
-    int err = redeem_rewards( stake_history, stake_state, vote_state_versioned, rewarded_epoch, point_value, calculated_stake_rewards );
-    if ( err != 0) {
-        FD_LOG_DEBUG(( "redeem_rewards failed for %32J with error %d", stake_acc->key, err ));
-        return;
-    }
-
-    /* Fetch the comission for the vote account */
-    ulong * commission = fd_valloc_malloc( slot_ctx->valloc, 1UL, 1UL );
-    switch (vote_state_versioned->discriminant) {
-        case fd_vote_state_versioned_enum_current:
-            *commission = (uchar)vote_state_versioned->inner.current.commission;
-            break;
-        case fd_vote_state_versioned_enum_v0_23_5:
-            *commission = (uchar)vote_state_versioned->inner.v0_23_5.commission;
-            break;
-        case fd_vote_state_versioned_enum_v1_14_11:
-            *commission = (uchar)vote_state_versioned->inner.v1_14_11.commission;
-            break;
-        default:
-            FD_LOG_DEBUG(( "unsupported vote account" ));
+        FD_BORROWED_ACCOUNT_DECL( stake_acc_rec );
+        if( fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, stake_acc, stake_acc_rec) != 0 ) {
+            FD_LOG_DEBUG(( "Stake acc not found %32J", stake_acc->uc ));
             return;
-    }
+        }
 
-    /* Update the vote reward in the map */
-    fd_vote_reward_t_mapnode_t vote_map_key[1];
-    fd_memcpy( &vote_map_key->elem.pubkey, voter_acc, sizeof(fd_pubkey_t) );
-    fd_vote_reward_t_mapnode_t * vote_reward_node = fd_vote_reward_t_map_find( result->vote_reward_map_pool, result->vote_reward_map_root, vote_map_key );
-    if ( vote_reward_node == NULL ) {
-        vote_reward_node = fd_vote_reward_t_map_acquire( result->vote_reward_map_pool );
-        fd_memcpy( &vote_reward_node->elem.pubkey, voter_acc, sizeof(fd_pubkey_t) );
-        vote_reward_node->elem.commission = (uchar)*commission;
-        vote_reward_node->elem.vote_rewards = calculated_stake_rewards->voter_rewards;
-        vote_reward_node->elem.needs_store = 1;
-        fd_vote_reward_t_map_insert( result->vote_reward_map_pool, &result->vote_reward_map_root, vote_reward_node );
-    } else {
-        vote_reward_node->elem.needs_store = 1;
-        vote_reward_node->elem.vote_rewards = fd_ulong_sat_add(
-            vote_reward_node->elem.vote_rewards, calculated_stake_rewards->voter_rewards
-        );
-    }
+        fd_stake_state_v2_t stake_state[1] = {0};
+        if ( fd_stake_get_state( stake_acc_rec, &slot_ctx->valloc, stake_state ) != 0 ) {
+            FD_LOG_DEBUG(( "Failed to read stake state from stake account %32J", stake_acc ));
+            return;
+        }
+        if ( !fd_stake_state_v2_is_stake( stake_state ) ) {
+            FD_LOG_DEBUG(( "stake account does not have active delegation" ));
+            return;
+        }
+        fd_pubkey_t const * voter_acc = &stake_state->inner.stake.stake.delegation.voter_pubkey;
 
-    /* Update the total stake rewards */
-    result->stake_reward_calculation.total_stake_rewards_lamports += calculated_stake_rewards->staker_rewards;
+        if ( FD_FEATURE_ACTIVE(slot_ctx, stake_minimum_delegation_for_rewards )) {
+            if ( stake_state->inner.stake.stake.delegation.stake < minimum_stake_delegation ) {
+                return;
+            }
+        }
 
-    /* Add the partitioned stake reward to the partitioned stake reward  */
-    fd_partitioned_stake_reward_t partitioned_stake_reward;
-    fd_memcpy( &partitioned_stake_reward.stake_pubkey, stake_acc, sizeof(fd_pubkey_t) );
-    partitioned_stake_reward.stake_reward_info = (fd_reward_info_t) {
-        .reward_type = { .discriminant = fd_reward_type_enum_staking },
-        .commission = commission,
-        .lamports = calculated_stake_rewards->staker_rewards,
-        .post_balance = stake_acc_rec->const_meta->info.lamports + calculated_stake_rewards->staker_rewards,
-    };
-    /* TODO: avoid this copy by keeping a reference around? */
-    fd_memcpy( &partitioned_stake_reward.stake, &stake_state->inner.stake.stake, FD_STAKE_FOOTPRINT );
+        fd_vote_accounts_pair_t_mapnode_t key;
+        fd_memcpy( &key.elem.key, voter_acc, sizeof(fd_pubkey_t) );
+        if ( fd_vote_accounts_pair_t_map_find( epoch_bank->stakes.vote_accounts.vote_accounts_pool, epoch_bank->stakes.vote_accounts.vote_accounts_root, &key ) == NULL
+            && fd_vote_accounts_pair_t_map_find( slot_ctx->slot_bank.vote_account_keys.vote_accounts_pool, slot_ctx->slot_bank.vote_account_keys.vote_accounts_root, &key ) == NULL) {
+        return;
+        }
 
-    /* TODO: only copy the new credits observed, not the whole stake */
-    partitioned_stake_reward.stake.credits_observed = calculated_stake_rewards->new_credits_observed;
+        FD_BORROWED_ACCOUNT_DECL( voter_acc_rec );
+        int read_err = fd_acc_mgr_view( slot_ctx->acc_mgr, slot_ctx->funk_txn, voter_acc, voter_acc_rec );
+        if( read_err!=0 || memcmp( &voter_acc_rec->const_meta->info.owner, fd_solana_vote_program_id.key, sizeof(fd_pubkey_t) ) != 0 ) {
+        return;
+        }
 
-    /* TODO: use zero-copy API to push to queue */
-    deq_fd_partitioned_stake_reward_t_push_tail( result->stake_reward_calculation.stake_reward_deq, partitioned_stake_reward );
+        fd_valloc_t valloc = fd_scratch_virtual();
+        fd_bincode_decode_ctx_t decode = {
+            .data    = voter_acc_rec->const_data,
+            .dataend = voter_acc_rec->const_data + voter_acc_rec->const_meta->dlen,
+            .valloc  = valloc,
+        };
+        fd_vote_state_versioned_t vote_state_versioned[1] = {0};
+        if( fd_vote_state_versioned_decode( vote_state_versioned, &decode ) != 0 ) {
+            FD_LOG_ERR(( "failed to decode vote state" ));
+            return;
+        }
+
+        /* Note, this doesn't actually redeem any rewards.. this is a misnomer. */
+        fd_calculated_stake_rewards_t calculated_stake_rewards[1] = {0};
+        int err = redeem_rewards( stake_history, stake_state, vote_state_versioned, rewarded_epoch, point_value, calculated_stake_rewards );
+        if ( err != 0) {
+            FD_LOG_DEBUG(( "redeem_rewards failed for %32J with error %d", stake_acc->key, err ));
+            return;
+        }
+
+        /* Fetch the comission for the vote account */
+        ulong * commission = fd_valloc_malloc( slot_ctx->valloc, 1UL, 1UL );
+        switch (vote_state_versioned->discriminant) {
+            case fd_vote_state_versioned_enum_current:
+                *commission = (uchar)vote_state_versioned->inner.current.commission;
+                break;
+            case fd_vote_state_versioned_enum_v0_23_5:
+                *commission = (uchar)vote_state_versioned->inner.v0_23_5.commission;
+                break;
+            case fd_vote_state_versioned_enum_v1_14_11:
+                *commission = (uchar)vote_state_versioned->inner.v1_14_11.commission;
+                break;
+            default:
+                FD_LOG_DEBUG(( "unsupported vote account" ));
+                return;
+        }
+
+        /* Update the vote reward in the map */
+        fd_vote_reward_t_mapnode_t vote_map_key[1];
+        fd_memcpy( &vote_map_key->elem.pubkey, voter_acc, sizeof(fd_pubkey_t) );
+        fd_vote_reward_t_mapnode_t * vote_reward_node = fd_vote_reward_t_map_find( result->vote_reward_map_pool, result->vote_reward_map_root, vote_map_key );
+        if ( vote_reward_node == NULL ) {
+            vote_reward_node = fd_vote_reward_t_map_acquire( result->vote_reward_map_pool );
+            fd_memcpy( &vote_reward_node->elem.pubkey, voter_acc, sizeof(fd_pubkey_t) );
+            vote_reward_node->elem.commission = (uchar)*commission;
+            vote_reward_node->elem.vote_rewards = calculated_stake_rewards->voter_rewards;
+            vote_reward_node->elem.needs_store = 1;
+            fd_vote_reward_t_map_insert( result->vote_reward_map_pool, &result->vote_reward_map_root, vote_reward_node );
+        } else {
+            vote_reward_node->elem.needs_store = 1;
+            vote_reward_node->elem.vote_rewards = fd_ulong_sat_add(
+                vote_reward_node->elem.vote_rewards, calculated_stake_rewards->voter_rewards
+            );
+        }
+
+        /* Update the total stake rewards */
+        result->stake_reward_calculation.total_stake_rewards_lamports += calculated_stake_rewards->staker_rewards;
+
+        /* Add the partitioned stake reward to the partitioned stake reward  */
+        fd_partitioned_stake_reward_t partitioned_stake_reward;
+        fd_memcpy( &partitioned_stake_reward.stake_pubkey, stake_acc, sizeof(fd_pubkey_t) );
+        partitioned_stake_reward.stake_reward_info = (fd_reward_info_t) {
+            .reward_type = { .discriminant = fd_reward_type_enum_staking },
+            .commission = commission,
+            .lamports = calculated_stake_rewards->staker_rewards,
+            .post_balance = stake_acc_rec->const_meta->info.lamports + calculated_stake_rewards->staker_rewards,
+        };
+        /* TODO: avoid this copy by keeping a reference around? */
+        fd_memcpy( &partitioned_stake_reward.stake, &stake_state->inner.stake.stake, FD_STAKE_FOOTPRINT );
+
+        /* TODO: only copy the new credits observed, not the whole stake */
+        partitioned_stake_reward.stake.credits_observed = calculated_stake_rewards->new_credits_observed;
+
+        /* TODO: use zero-copy API to push to queue */
+        deq_fd_partitioned_stake_reward_t_push_tail( result->stake_reward_calculation.stake_reward_deq, partitioned_stake_reward );
+
+    } FD_SCRATCH_SCOPE_END;
 }
 
 /* Calculates epoch rewards for stake/vote accounts.
@@ -652,11 +657,10 @@ calculate_stake_vote_rewards(
     
         https://github.com/anza-xyz/agave/blob/cbc8320d35358da14d79ebcada4dfb6756ffac79/runtime/src/bank/partitioned_epoch_rewards/calculation.rs#L367  */
     for( fd_delegation_pair_t_mapnode_t const * n = fd_delegation_pair_t_map_minimum_const(
-        epoch_bank->stakes.stake_delegations_pool, epoch_bank->stakes.stake_delegations_root );
+         epoch_bank->stakes.stake_delegations_pool, epoch_bank->stakes.stake_delegations_root );
          n;
          n = fd_delegation_pair_t_map_successor_const( epoch_bank->stakes.stake_delegations_pool, n )
-    ) {
-        /* FIXME: this seems to be doing a large number of iterations? */
+    ) {        
         fd_pubkey_t const * stake_acc = &n->elem.account;
 
         calculate_stake_vote_rewards_account(
