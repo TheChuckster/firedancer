@@ -110,31 +110,6 @@ fd_exec_vm_syscall_test_run( fd_exec_instr_test_runner_t *          runner,
                              void *                                 output_buf,
                              ulong                                  output_bufsz );
 
-ulong
-fd_exec_vm_cpi_syscall_test_run( fd_exec_instr_test_runner_t *          runner,
-                                 fd_exec_test_cpi_snapshot_t const *       input,
-                                 fd_exec_test_syscall_effects_t **        output,
-                                 void *                                 output_buf,
-                                 ulong                                  output_bufsz );
-
-/* Protobuf callbacks specific */
-typedef struct{
-  ulong size;
-  union {
-   pb_byte_t *bytes;
-   pb_byte_t const *bytes_const;
-  };
-} bytes_region_t;
-
-bool
-read_bytes_callback( pb_istream_t *stream,
-                     const pb_field_t *field,
-                     void **arg );
-
-bool
-write_bytes_callback( pb_ostream_t *stream,
-                      const pb_field_t *field,
-                      void * const *arg );
 
 FD_PROTOTYPES_END
 

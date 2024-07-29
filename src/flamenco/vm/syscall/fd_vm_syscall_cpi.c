@@ -9,26 +9,15 @@
 #include <unistd.h>
 #include <errno.h>
 #include "../../nanopb/pb_encode.h"
-#include "../../runtime/tests/generated/vm_cpi.pb.h"
+#include "../../runtime/tests/generated/vm.pb.h"
 #include "../../runtime/tests/fd_exec_instr_test.h"
 
 #define STRINGIFY(x) TOSTRING(x)
 #define TOSTRING(x) #x
 
 static inline void
-init_bytes_encode_callback( pb_callback_t * cb,
-                            bytes_region_t * region,
-                            pb_byte_t const* buf,
-                            ulong bufsz ) {
-  region->size = bufsz;
-  region->bytes_const = buf;
-  cb->arg = region;
-  cb->funcs.encode = write_bytes_callback;
-}
-
-static inline void
 dump_vm_cpi_state(fd_vm_t *vm,
-                  char const * abi_str,
+                  char const * fn_name,
                   ulong   instruction_va,
                   ulong   acct_infos_va,
                   ulong   acct_info_cnt,
@@ -36,48 +25,64 @@ dump_vm_cpi_state(fd_vm_t *vm,
                   ulong   signers_seeds_cnt ) {
   char filename[100];
   fd_instr_info_t const *instr = vm->instr_ctx->instr;
-  sprintf(filename, "vm_cpi_state/%lu_%lu%lu_%lu.cpisnap", fd_tile_id(), instr->program_id_pubkey.ul[0], instr->program_id_pubkey.ul[1], instr->data_sz);
+  sprintf(filename, "vm_cpi_state/%lu_%lu%lu_%lu.sysctx", fd_tile_id(), instr->program_id_pubkey.ul[0], instr->program_id_pubkey.ul[1], instr->data_sz);
 
-  fd_exec_test_cpi_snapshot_t cpi_snap = FD_EXEC_TEST_CPI_SNAPSHOT_INIT_DEFAULT;
-
-  if (memcmp(abi_str, "c", 1) == 0) {
-    cpi_snap.abi = FD_EXEC_TEST_CPIABI_C;
-  } else if (memcmp(abi_str, "rust", 4) == 0) {
-    cpi_snap.abi = FD_EXEC_TEST_CPIABI_RUST;
-  } else {
-    cpi_snap.abi = FD_EXEC_TEST_CPIABI_UNKNOWN;
+  // Check if file exists
+  if ( access (filename, F_OK) != -1 ) {
+    return;
   }
 
-  cpi_snap.instruction_va = instruction_va;
-  cpi_snap.account_infos_va = acct_infos_va;
-  cpi_snap.account_infos_cnt = acct_info_cnt;
-  cpi_snap.signers_seeds_va = signers_seeds_va;
-  cpi_snap.signers_seeds_cnt = signers_seeds_cnt;
+  fd_exec_test_syscall_context_t sys_ctx = FD_EXEC_TEST_SYSCALL_CONTEXT_INIT_ZERO;
+  sys_ctx.has_instr_ctx = true;
+  sys_ctx.has_vm_ctx = true;
+  sys_ctx.has_syscall_invocation = true;
 
+  // Copy function name
+  sys_ctx.syscall_invocation.function_name.size = fd_uint_min( (uint) strlen(fn_name), sizeof(sys_ctx.syscall_invocation.function_name.bytes) );
+  fd_memcpy( sys_ctx.syscall_invocation.function_name.bytes,
+             fn_name,
+             sys_ctx.syscall_invocation.function_name.size );
 
-  bytes_region_t ro_region = {0};
-  init_bytes_encode_callback(&cpi_snap.ro_region, &ro_region, vm->rodata, vm->rodata_sz);
+  // VM Ctx integral fields
+  sys_ctx.vm_ctx.r1 = instruction_va;
+  sys_ctx.vm_ctx.r2 = acct_infos_va;
+  sys_ctx.vm_ctx.r3 = acct_info_cnt;
+  sys_ctx.vm_ctx.r4 = signers_seeds_va;
+  sys_ctx.vm_ctx.r5 = signers_seeds_cnt;
 
-  bytes_region_t stack_region = {0};
-  init_bytes_encode_callback( &cpi_snap.stack,
-                              &stack_region,
-                              vm->stack,
-                              (vm->frame_cnt + 1)*FD_VM_STACK_GUARD_SZ*2 );
+  sys_ctx.vm_ctx.rodata_text_section_length = vm->text_sz;
+  sys_ctx.vm_ctx.rodata_text_section_offset = vm->text_off;
 
-  bytes_region_t heap_region = {0};
-  init_bytes_encode_callback( &cpi_snap.heap,
-                              &heap_region, 
-                              vm->heap, 
-                              vm->instr_ctx->txn_ctx->heap_size );
+  sys_ctx.vm_ctx.heap_max = vm->heap_max; /* should be equiv. to txn_ctx->heap_sz */
 
-  bytes_region_t input_region = {0};
-  init_bytes_encode_callback(&cpi_snap.input_region, &input_region, vm->input, vm->input_sz);
-  
   FD_SCRATCH_SCOPE_BEGIN{
-    cpi_snap.has_instr_ctx = true;
-    fd_create_instr_context_protobuf_from_instructions( &cpi_snap.instr_ctx, 
+    sys_ctx.vm_ctx.rodata = fd_scratch_alloc( 8UL, PB_BYTES_ARRAY_T_ALLOCSIZE(vm->rodata_sz) );
+    sys_ctx.vm_ctx.rodata->size = (pb_size_t) vm->rodata_sz;
+    fd_memcpy( sys_ctx.vm_ctx.rodata->bytes, vm->rodata, vm->rodata_sz );
+
+    pb_size_t stack_sz = (pb_size_t) ( (vm->frame_cnt + 1)*FD_VM_STACK_GUARD_SZ*2 );
+    sys_ctx.syscall_invocation.stack_prefix = fd_scratch_alloc( 8UL, PB_BYTES_ARRAY_T_ALLOCSIZE(stack_sz) );
+    sys_ctx.syscall_invocation.stack_prefix->size = stack_sz;
+    fd_memcpy( sys_ctx.syscall_invocation.stack_prefix->bytes, vm->stack, stack_sz );
+    
+    sys_ctx.syscall_invocation.heap_prefix = fd_scratch_alloc( 8UL, PB_BYTES_ARRAY_T_ALLOCSIZE(vm->heap_max) );
+    sys_ctx.syscall_invocation.heap_prefix->size = (pb_size_t) vm->instr_ctx->txn_ctx->heap_size;
+    fd_memcpy( sys_ctx.syscall_invocation.heap_prefix->bytes, vm->heap, vm->instr_ctx->txn_ctx->heap_size );
+
+    /* FIXME: Do this with direct mapping in mind */
+    sys_ctx.vm_ctx.input_data_regions_count  = 1;
+    sys_ctx.vm_ctx.input_data_regions = fd_scratch_alloc( 8UL, sizeof(fd_exec_test_input_data_region_t) );
+    sys_ctx.vm_ctx.input_data_regions[0].content = fd_scratch_alloc( 8UL, PB_BYTES_ARRAY_T_ALLOCSIZE(vm->input_sz) );
+    sys_ctx.vm_ctx.input_data_regions[0].content->size = (pb_size_t) vm->input_sz;
+    fd_memcpy( sys_ctx.vm_ctx.input_data_regions[0].content->bytes, vm->input, vm->input_sz );
+    sys_ctx.vm_ctx.input_data_regions[0].offset = 0;
+    sys_ctx.vm_ctx.input_data_regions[0].is_writable = true;
+  
+    fd_create_instr_context_protobuf_from_instructions( &sys_ctx.instr_ctx, 
                                                         vm->instr_ctx->txn_ctx,
                                                         vm->instr_ctx->instr );
+
+    // Serialize the protobuf to file (using mmap)
     size_t pb_alloc_size = 100 * 1024 * 1024; // 100MB (largest so far is 19MB)
     FILE *f = fopen(filename, "wb+");
     if (ftruncate(fileno(f), (off_t) pb_alloc_size) != 0) {
@@ -99,7 +104,7 @@ dump_vm_cpi_state(fd_vm_t *vm,
     }
 
     pb_ostream_t stream = pb_ostream_from_buffer(pb_alloc, pb_alloc_size);
-    if (!pb_encode(&stream, FD_EXEC_TEST_CPI_SNAPSHOT_FIELDS, &cpi_snap)) {
+    if (!pb_encode(&stream, FD_EXEC_TEST_SYSCALL_CONTEXT_FIELDS, &sys_ctx)) {
       FD_LOG_WARNING(("Failed to encode instruction context"));
     }
     // resize file to actual size

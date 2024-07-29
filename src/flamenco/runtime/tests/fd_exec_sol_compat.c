@@ -594,45 +594,6 @@ sol_compat_vm_cpi_syscall_v1( uchar *       out,
                               ulong *       out_sz,
                               uchar const * in,
                               ulong         in_sz ) {
-  // Setup
-  ulong fmem[ 64 ];
-  fd_exec_instr_test_runner_t * runner = sol_compat_setup_scratch_and_runner( fmem );
-
-  // Decode context
-  fd_exec_test_cpi_snapshot_t input[1] = {0};
-
-  // setup regions for callback fields
-  /* FIXME: potential lifetime issues? */
-  input->ro_region.arg = &(bytes_region_t){ .bytes = NULL, .size = 0 };
-  input->ro_region.funcs.decode = read_bytes_callback;
-
-  input->heap.arg = &(bytes_region_t){ .bytes = NULL, .size = 0 };
-  input->heap.funcs.decode = read_bytes_callback;
-
-  input->stack.arg = &(bytes_region_t){ .bytes = NULL, .size = 0 };
-  input->stack.funcs.decode = read_bytes_callback;
-
-  input->input_region.arg = &(bytes_region_t){ .bytes = NULL, .size = 0 };
-  input->input_region.funcs.decode = read_bytes_callback;
-
-  void * res = sol_compat_decode( &input, in, in_sz, &fd_exec_test_cpi_snapshot_t_msg );
-  if ( res==NULL ) {
-    sol_compat_cleanup_scratch_and_runner( runner );
-    return 0;
-  }
-
-  // Execute
-  void * output = NULL;
-  sol_compat_execute_wrapper( runner, input, &output, (exec_test_run_fn_t *)fd_exec_vm_cpi_syscall_test_run );
-
-  // Encode effects
-  int ok = 0;
-  if( output ) {
-    ok = !!sol_compat_encode( out, out_sz, output, &fd_exec_test_syscall_effects_t_msg );
-  }
-
-  // Cleanup
-  pb_release( &fd_exec_test_cpi_snapshot_t_msg, input );
-  sol_compat_cleanup_scratch_and_runner( runner );
-  return ok;
+  /* Just a wrapper to vm_syscall_execute_v1 */
+  return sol_compat_vm_syscall_execute_v1( out, out_sz, in, in_sz );
 }
