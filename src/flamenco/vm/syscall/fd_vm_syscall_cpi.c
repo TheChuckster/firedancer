@@ -15,10 +15,12 @@
 #define STRINGIFY(x) TOSTRING(x)
 #define TOSTRING(x) #x
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
 /* Captures the state of the VM (including the instruction context).
    Meant to be invoked at the start of the VM_SYSCALL_CPI_ENTRYPOINT like so:
    
-   ```
+  ```
    dump_vm_cpi_state(vm, STRINGIFY(FD_EXPAND_THEN_CONCAT2(sol_invoke_signed_, VM_SYSCALL_CPI_ABI)), 
                      instruction_va, acct_infos_va, acct_info_cnt, signers_seeds_va, signers_seeds_cnt);
   ```
@@ -127,6 +129,7 @@ dump_vm_cpi_state(fd_vm_t *vm,
 
   } FD_SCRATCH_SCOPE_END;
 }
+#pragma GCC diagnostic pop
 
 /* FIXME: ALGO EFFICIENCY */
 static inline int
