@@ -1750,7 +1750,7 @@ fd_exec_vm_syscall_test_run( fd_exec_instr_test_runner_t *          runner,
 
   /* Capture the effects */
   effects->error = -syscall_err;
-  effects->r0 = vm->reg[0];
+  effects->r0 = syscall_err ? 0 : vm->reg[0]; // Save only on success
   effects->cu_avail = (ulong)vm->cu;
 
   effects->heap = FD_SCRATCH_ALLOC_APPEND(
