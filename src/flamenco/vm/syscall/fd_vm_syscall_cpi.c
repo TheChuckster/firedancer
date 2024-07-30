@@ -15,6 +15,17 @@
 #define STRINGIFY(x) TOSTRING(x)
 #define TOSTRING(x) #x
 
+/* Captures the state of the VM (including the instruction context).
+   Meant to be invoked at the start of the VM_SYSCALL_CPI_ENTRYPOINT like so:
+   
+   ```
+   dump_vm_cpi_state(vm, STRINGIFY(FD_EXPAND_THEN_CONCAT2(sol_invoke_signed_, VM_SYSCALL_CPI_ABI)), 
+                     instruction_va, acct_infos_va, acct_info_cnt, signers_seeds_va, signers_seeds_cnt);
+  ```
+
+  Assumes that a `vm_cp_state` directory exists in the current working directory. Generates a
+  unique dump for combination of (tile_id, caller_pubkey, instr_sz). */
+
 static inline void
 dump_vm_cpi_state(fd_vm_t *vm,
                   char const * fn_name,
