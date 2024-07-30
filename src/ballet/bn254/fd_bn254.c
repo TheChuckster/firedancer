@@ -166,7 +166,9 @@ fd_bn254_g1_add_syscall( uchar       out[64],
     return -1;
   }
   uchar FD_ALIGNED buf[128] = { 0 };
-  fd_memcpy( buf, in, in_sz );
+  if( in_sz ) {
+    fd_memcpy( buf, in, in_sz );
+  }
 
   /* Validate inputs */
   fd_bn254_g1_t r[1], a[1], b[1];
@@ -194,7 +196,9 @@ fd_bn254_g1_scalar_mul_syscall( uchar       out[64],
     return -1;
   }
   uchar FD_ALIGNED buf[96] = { 0 };
-  fd_memcpy( buf, in, fd_ulong_min( in_sz, 96UL ) );
+  if( in_sz ) {
+    fd_memcpy( buf, in, fd_ulong_min( in_sz, 96UL ) );
+  }
 
   /* Validate inputs */
   fd_bn254_g1_t r[1], a[1];
