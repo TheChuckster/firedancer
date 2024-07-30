@@ -510,8 +510,8 @@ dump_account_state( fd_borrowed_account_t const * borrowed_account,
     output_account->has_seed_addr = false;
 }
 
-static void
-create_instr_context_protobuf_from_instructions( fd_exec_test_instr_context_t * instr_context,
+void
+fd_create_instr_context_protobuf_from_instructions( fd_exec_test_instr_context_t * instr_context,
                                                  fd_exec_txn_ctx_t const *txn_ctx,
                                                  fd_instr_info_t const *instr ) {
   /*
@@ -665,7 +665,7 @@ dump_instr_to_protobuf( fd_exec_txn_ctx_t *txn_ctx,
     }
 
     fd_exec_test_instr_context_t instr_context = FD_EXEC_TEST_INSTR_CONTEXT_INIT_DEFAULT;
-    create_instr_context_protobuf_from_instructions( &instr_context, txn_ctx, instr );
+    fd_create_instr_context_protobuf_from_instructions( &instr_context, txn_ctx, instr );
 
     /* Output to file */
     ulong out_buf_size = 100 * 1024 * 1024;
