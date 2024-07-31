@@ -9,6 +9,11 @@ static void sighandler(int sig) {
   stopflag = 1;
 }
 
+static void response_free( uchar const * orig_body, void * free_ctx ) {
+  (void)free_ctx;
+  free((void*)orig_body);
+}
+
 static fd_http_server_response_t
 request( ulong connection_id, char const * path, void * ctx ) {
   FD_LOG_NOTICE(( "id=%lu path=\"%s\" ctx=%lx", connection_id, path, (ulong)ctx ));
@@ -18,7 +23,8 @@ request( ulong connection_id, char const * path, void * ctx ) {
     .upgrade_websocket = 0,
     .content_type = "application/json",
     .body = (const uchar*)strdup(TEXT),
-    .body_len = strlen(TEXT)
+    .body_len = strlen(TEXT),
+    .body_free = response_free
   };
   return response;
 }

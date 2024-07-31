@@ -59,6 +59,8 @@ typedef struct fd_http_server_params fd_http_server_params_t;
    websocket, after which the handler will begin receiving websocket
    frames. */
 
+typedef void (*fd_http_server_response_free)( uchar const * orig_body, void * free_ctx );
+
 struct fd_http_server_response {
   ulong status;              /* Status code of the HTTP response */
   int   upgrade_websocket;   /* 1 if we should send a websocket upgrade response */
@@ -67,6 +69,9 @@ struct fd_http_server_response {
 
   uchar const * body;        /* Response body to send, only sent if status is 200 */
   ulong         body_len;    /* Length of the response body */
+
+  fd_http_server_response_free body_free; /* Function used to free the body after it is sent */
+  void *                       body_free_ctx;
 };
 
 typedef struct fd_http_server_response fd_http_server_response_t;

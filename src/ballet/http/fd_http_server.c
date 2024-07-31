@@ -613,6 +613,9 @@ write_conn_http( fd_http_server_t * http,
         }
         break;
       case FD_HTTP_SERVER_CONNECTION_STATE_WRITING_BODY:
+        if( conn->response.body_free != NULL ) {
+          conn->response.body_free( conn->response.body, conn->response.body_free_ctx );
+        }
         close_conn( http, conn_idx, FD_HTTP_SERVER_CONNECTION_CLOSE_OK );
         break;
     }
