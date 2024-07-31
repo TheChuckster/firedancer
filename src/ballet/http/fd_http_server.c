@@ -48,32 +48,23 @@ fd_http_server_align( void ) {
 }
 
 FD_FN_CONST ulong
-fd_http_server_footprint( ulong max_connection_cnt,
-                          ulong max_ws_connection_cnt,
-                          ulong max_request_len,
-                          ulong max_ws_recv_frame_len,
-                          ulong max_ws_send_frame_cnt ) {
+fd_http_server_footprint( fd_http_server_params_t params ) {
   ulong l = FD_LAYOUT_INIT;
   l = FD_LAYOUT_APPEND( l, alignof( struct fd_http_server_private ),       sizeof( fd_http_server_t )                                                           );
-  l = FD_LAYOUT_APPEND( l, alignof( struct fd_http_server_connection ),    max_connection_cnt*sizeof( struct fd_http_server_connection )                        );
-  l = FD_LAYOUT_APPEND( l, alignof( struct fd_http_server_ws_connection ), max_ws_connection_cnt*sizeof( struct fd_http_server_ws_connection )                  );
-  l = FD_LAYOUT_APPEND( l, alignof( struct pollfd ),                       (max_connection_cnt+max_ws_connection_cnt+1UL)*sizeof( struct pollfd )               );
-  l = FD_LAYOUT_APPEND( l, 1UL,                                            max_request_len*max_connection_cnt                                                   );
-  l = FD_LAYOUT_APPEND( l, 1UL,                                            max_ws_recv_frame_len*max_ws_connection_cnt                                          );
-  l = FD_LAYOUT_APPEND( l, alignof( struct fd_http_server_ws_frame ),      max_ws_send_frame_cnt*max_ws_connection_cnt*sizeof( struct fd_http_server_ws_frame ) );
+  l = FD_LAYOUT_APPEND( l, alignof( struct fd_http_server_connection ),    params.max_connection_cnt*sizeof( struct fd_http_server_connection )                        );
+  l = FD_LAYOUT_APPEND( l, alignof( struct fd_http_server_ws_connection ), params.max_ws_connection_cnt*sizeof( struct fd_http_server_ws_connection )                  );
+  l = FD_LAYOUT_APPEND( l, alignof( struct pollfd ),                       (params.max_connection_cnt+params.max_ws_connection_cnt+1UL)*sizeof( struct pollfd )               );
+  l = FD_LAYOUT_APPEND( l, 1UL,                                            params.max_request_len*params.max_connection_cnt                                                   );
+  l = FD_LAYOUT_APPEND( l, 1UL,                                            params.max_ws_recv_frame_len*params.max_ws_connection_cnt                                          );
+  l = FD_LAYOUT_APPEND( l, alignof( struct fd_http_server_ws_frame ),      params.max_ws_send_frame_cnt*params.max_ws_connection_cnt*sizeof( struct fd_http_server_ws_frame ) );
   return FD_LAYOUT_FINI( l, fd_http_server_align() );
 }
 
 void *
 fd_http_server_new( void *                     shmem,
-                    ulong                      max_connection_cnt,
-                    ulong                      max_ws_connection_cnt,
-                    ulong                      max_request_len,
-                    ulong                      max_ws_recv_frame_len,
-                    ulong                      max_ws_send_frame_cnt,
+                    fd_http_server_params_t    params,
                     fd_http_server_callbacks_t callbacks,
                     void *                     callback_ctx ) {
-
   if( FD_UNLIKELY( !shmem ) ) {
     FD_LOG_WARNING(( "NULL shmem" ));
     return NULL;
@@ -86,42 +77,42 @@ fd_http_server_new( void *                     shmem,
 
   FD_SCRATCH_ALLOC_INIT( l, shmem );
   fd_http_server_t * http = FD_SCRATCH_ALLOC_APPEND( l,  FD_HTTP_SERVER_ALIGN,                         sizeof(fd_http_server_t)                                               );
-  http->conns             = FD_SCRATCH_ALLOC_APPEND( l,  alignof(struct fd_http_server_connection),    max_connection_cnt*sizeof(struct fd_http_server_connection)            );
-  http->ws_conns          = FD_SCRATCH_ALLOC_APPEND( l,  alignof(struct fd_http_server_ws_connection), max_ws_connection_cnt*sizeof(struct fd_http_server_ws_connection)      );
-  http->pollfds           = FD_SCRATCH_ALLOC_APPEND( l,  alignof(struct pollfd),                       (max_connection_cnt+max_ws_connection_cnt+1UL)*sizeof( struct pollfd ) );
-  char * _request_bytes   = FD_SCRATCH_ALLOC_APPEND( l,  1UL,                                          max_request_len*max_connection_cnt                                     );
-  uchar * _ws_recv_bytes  = FD_SCRATCH_ALLOC_APPEND( l,  1UL,                                          max_ws_recv_frame_len*max_ws_connection_cnt                            );
-  struct fd_http_server_ws_frame * _ws_send_frames = FD_SCRATCH_ALLOC_APPEND( l, alignof(struct fd_http_server_ws_frame), max_ws_send_frame_cnt*max_ws_connection_cnt*sizeof(struct fd_http_server_ws_frame) );
+  http->conns             = FD_SCRATCH_ALLOC_APPEND( l,  alignof(struct fd_http_server_connection),    params.max_connection_cnt*sizeof(struct fd_http_server_connection)            );
+  http->ws_conns          = FD_SCRATCH_ALLOC_APPEND( l,  alignof(struct fd_http_server_ws_connection), params.max_ws_connection_cnt*sizeof(struct fd_http_server_ws_connection)      );
+  http->pollfds           = FD_SCRATCH_ALLOC_APPEND( l,  alignof(struct pollfd),                       (params.max_connection_cnt+params.max_ws_connection_cnt+1UL)*sizeof( struct pollfd ) );
+  char * _request_bytes   = FD_SCRATCH_ALLOC_APPEND( l,  1UL,                                          params.max_request_len*params.max_connection_cnt                                     );
+  uchar * _ws_recv_bytes  = FD_SCRATCH_ALLOC_APPEND( l,  1UL,                                          params.max_ws_recv_frame_len*params.max_ws_connection_cnt                            );
+  struct fd_http_server_ws_frame * _ws_send_frames = FD_SCRATCH_ALLOC_APPEND( l, alignof(struct fd_http_server_ws_frame), params.max_ws_send_frame_cnt*params.max_ws_connection_cnt*sizeof(struct fd_http_server_ws_frame) );
 
   http->callbacks             = callbacks;
   http->callback_ctx          = callback_ctx;
   http->conn_id               = 0UL;
   http->ws_conn_id            = 0UL;
-  http->max_conns             = max_connection_cnt;
-  http->max_ws_conns          = max_ws_connection_cnt;
-  http->max_request_len       = max_request_len;
-  http->max_ws_recv_frame_len = max_ws_recv_frame_len;
-  http->max_ws_send_frame_cnt = max_ws_send_frame_cnt;
+  http->max_conns             = params.max_connection_cnt;
+  http->max_ws_conns          = params.max_ws_connection_cnt;
+  http->max_request_len       = params.max_request_len;
+  http->max_ws_recv_frame_len = params.max_ws_recv_frame_len;
+  http->max_ws_send_frame_cnt = params.max_ws_send_frame_cnt;
 
-  for( ulong i=0UL; i<max_connection_cnt; i++ ) {
+  for( ulong i=0UL; i<params.max_connection_cnt; i++ ) {
     http->pollfds[ i ].fd = -1;
     http->pollfds[ i ].events = POLLIN | POLLOUT;
     http->conns[ i ] = (struct fd_http_server_connection){
-      .request_bytes = _request_bytes+i*max_request_len,
+      .request_bytes = _request_bytes+i*params.max_request_len,
     };
   }
 
-  for( ulong i=0UL; i<max_ws_connection_cnt; i++ ) {
-    http->pollfds[ max_connection_cnt+i ].fd = -1;
-    http->pollfds[ max_connection_cnt+i ].events = POLLIN | POLLOUT;
+  for( ulong i=0UL; i<params.max_ws_connection_cnt; i++ ) {
+    http->pollfds[ params.max_connection_cnt+i ].fd = -1;
+    http->pollfds[ params.max_connection_cnt+i ].events = POLLIN | POLLOUT;
     http->ws_conns[ i ] = (struct fd_http_server_ws_connection){
-      .recv_bytes = _ws_recv_bytes+i*max_ws_recv_frame_len,
-      .send_frames = _ws_send_frames+i*max_ws_send_frame_cnt,
+      .recv_bytes = _ws_recv_bytes+i*params.max_ws_recv_frame_len,
+      .send_frames = _ws_send_frames+i*params.max_ws_send_frame_cnt,
     };
   }
 
-  http->pollfds[ max_connection_cnt+max_ws_connection_cnt ].fd     = -1;
-  http->pollfds[ max_connection_cnt+max_ws_connection_cnt ].events = POLLIN | POLLOUT;
+  http->pollfds[ params.max_connection_cnt+params.max_ws_connection_cnt ].fd     = -1;
+  http->pollfds[ params.max_connection_cnt+params.max_ws_connection_cnt ].events = POLLIN | POLLOUT;
 
   FD_COMPILER_MFENCE();
   FD_VOLATILE( http->magic ) = FD_HTTP_SERVER_MAGIC;
@@ -200,7 +191,7 @@ fd_http_server_listen( fd_http_server_t * http,
   int optval = 1;
   if( FD_UNLIKELY( -1==setsockopt( sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof( optval ) ) ) )
     FD_LOG_ERR(( "setsockopt failed (%i-%s)", errno, strerror( errno ) ));
-  
+
   struct sockaddr_in addr = {
     .sin_family      = AF_INET,
     .sin_port        = fd_ushort_bswap( port ),
@@ -212,6 +203,8 @@ fd_http_server_listen( fd_http_server_t * http,
 
   http->socket_fd = sockfd;
   http->pollfds[ http->max_conns+http->max_ws_conns ].fd = http->socket_fd;
+
+  FD_LOG_NOTICE(( "listening to port %hu", port ));
 
   return http;
 }
@@ -586,7 +579,7 @@ write_conn_http( fd_http_server_t * http,
         if( FD_UNLIKELY( conn->response.upgrade_websocket ) ) {
           int fd = http->pollfds[ conn_idx ].fd;
           http->pollfds[ conn_idx ].fd = -1;
-          
+
           /* Just evict oldest ws connection if it's still alive, they
              were too slow. */
           ulong ws_conn_id = http->ws_conn_id;
@@ -632,7 +625,7 @@ maybe_write_pong( fd_http_server_t * http,
   struct fd_http_server_ws_connection * conn = &http->ws_conns[ conn_idx-http->max_conns ];
 
   /* No need to pong if ....
-    
+
       Client has not sent a ping */
   if( FD_LIKELY( conn->pong_state==FD_HTTP_SERVER_PONG_STATE_NONE ) )                               return 0;
   /*  We are in the middle of writing a data frame */
@@ -743,7 +736,7 @@ fd_http_server_ws_send( fd_http_server_t * http,
                         uchar const *      data,
                         ulong              data_len ) {
   struct fd_http_server_ws_connection * conn = &http->ws_conns[ connection_id ];
-  
+
   if( FD_UNLIKELY( conn->send_frame_cnt==http->max_ws_send_frame_cnt ) ) {
     close_conn( http, connection_id+http->max_conns, FD_HTTP_SERVER_CONNECTION_CLOSE_WS_CLIENT_TOO_SLOW );
     return;

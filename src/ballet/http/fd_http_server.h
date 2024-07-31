@@ -35,6 +35,16 @@
 FD_FN_CONST char const *
 fd_http_server_connection_close_reason_str( int reason );
 
+/* Parameters needed for construction of server */
+struct fd_http_server_params {
+  ulong max_connection_cnt;    /* Maximum number of concurrent HTTP/1.1 connections open.  Connections are not persistent and will be closed after one request is served. */
+  ulong max_ws_connection_cnt; /* Maximum number of concurrent websocket connections open. */
+  ulong max_request_len;       /* Maximum total length of an HTTP request, including the terminating \r\n\r\n. */
+  ulong max_ws_recv_frame_len; /* Maximum size of an incoming websocket frame from the client.  Must be >= max_request_len. */
+  ulong max_ws_send_frame_cnt; /* Maximum number of outgoing websocket frames that can be queued before the client is disconnected. */
+};
+typedef struct fd_http_server_params fd_http_server_params_t;
+
 /* A response issued by the server handler function to an HTTP request.
    The handler assures that the lifetime of the response buffer will
    exceed that of the request.  The response buffer is owned by the
@@ -65,7 +75,7 @@ struct fd_http_server_callbacks {
   /* Handle an incoming HTTP request.  The connection ID is a unique
      identifier for the lifetime of the connection, and will be provided
      to close to indicate that the connection is closed.
-     
+
      Path is the full HTTP path of the request, for example
      "/img/monkeys/gorilla.jpg", and ctx is the context pointer provided
      to fd_http_server_new. */
@@ -204,19 +214,11 @@ FD_FN_CONST ulong
 fd_http_server_align( void );
 
 FD_FN_CONST ulong
-fd_http_server_footprint( ulong max_connection_cnt,
-                          ulong max_ws_connection_cnt,
-                          ulong max_request_len,
-                          ulong max_ws_recv_frame_len,
-                          ulong max_ws_send_frame_cnt );
+fd_http_server_footprint( fd_http_server_params_t params );
 
 void *
 fd_http_server_new( void *                     shmem,
-                    ulong                      max_connection_cnt,    /* Maximum number of concurrent HTTP/1.1 connections open.  Connections are not persistent and will be closed after one request is served. */
-                    ulong                      max_ws_connection_cnt, /* Maximum number of concurrent websocket connections open. */
-                    ulong                      max_request_len,       /* Maximum total length of an HTTP request, including the terminating \r\n\r\n. */
-                    ulong                      max_ws_recv_frame_len, /* Maximum size of an incoming websocket frame from the client.  Must be >= max_request_len. */
-                    ulong                      max_ws_send_frame_cnt, /* Maximum number of outgoing websocket frames that can be queued before the client is disconnected. */
+                    fd_http_server_params_t    params,
                     fd_http_server_callbacks_t callbacks,
                     void *                     callback_ctx );
 
