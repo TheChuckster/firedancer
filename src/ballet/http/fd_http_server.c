@@ -515,8 +515,13 @@ read_conn_ws( fd_http_server_t * http,
   int is_fin_set = conn->recv_bytes[ conn->recv_bytes_parsed+0UL ] & 0x80;
 
   uchar * mask    = conn->recv_bytes+conn->recv_bytes_parsed+1UL+len_bytes;
+  uchar maskcopy[4];
+  maskcopy[0] = mask[0];
+  maskcopy[1] = mask[1];
+  maskcopy[2] = mask[2];
+  maskcopy[3] = mask[3];
   uchar * payload = conn->recv_bytes+conn->recv_bytes_parsed+header_len;
-  for( ulong i=0UL; i<payload_len; i++ ) conn->recv_bytes[ conn->recv_bytes_parsed+i ] = payload[ i ] ^ mask[ i % 4 ];
+  for( ulong i=0UL; i<payload_len; i++ ) conn->recv_bytes[ conn->recv_bytes_parsed+i ] = payload[ i ] ^ maskcopy[ i % 4 ];
 
   /* Check if this is a complete message */
 
