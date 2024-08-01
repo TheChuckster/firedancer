@@ -85,7 +85,7 @@ struct fd_http_server_callbacks {
      "/img/monkeys/gorilla.jpg", and ctx is the context pointer provided
      to fd_http_server_new. */
 
-  fd_http_server_response_t ( * request_get  )( ulong connection_id, char const * path, void * ctx );
+  fd_http_server_response_t ( * request_get  )( ulong connection_id, char const * path, int upgrade_websocket, void * ctx );
 
   /* Handle an incoming HTTP POST request. */
 

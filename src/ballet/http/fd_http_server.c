@@ -401,7 +401,7 @@ read_conn_http( fd_http_server_t * http,
   if( content_len ) {
     conn->response = http->callbacks.request_post( conn_idx, path_nul_terminated, content_type, (const uchar*)conn->request_bytes + (uint)result, content_len, http->callback_ctx );
   } else {
-    conn->response = http->callbacks.request_get( conn_idx, path_nul_terminated, http->callback_ctx );
+    conn->response = http->callbacks.request_get( conn_idx, path_nul_terminated, conn->upgrade_websocket, http->callback_ctx );
   }
   http->pollfds[ conn_idx ].events |= POLLOUT;
 
