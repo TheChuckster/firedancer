@@ -1,0 +1,24 @@
+import requests
+import json
+
+for i in range(20):
+    x = requests.get("http://localhost:4321/hello/from/the/magic/tavern")
+    print(x.content.decode('utf-8'))
+
+for i in range(20):
+    arg = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getAccountInfo",
+        "params": [
+            "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg",
+            {
+                "encoding": "base58"
+            }
+        ]
+    }
+    x = requests.post("http://localhost:4321/",json=arg)
+    res = json.loads(x.content)
+    print(res)
+
+print('Test passed!')

@@ -72,7 +72,7 @@ main( int     argc,
 
   FD_TEST( fd_http_server_listen( server, 4321U ) != NULL );
 
-  FD_LOG_NOTICE(( "try running\ncurl http://localhost:4321/hello/from/the/magic/tavern\ncurl http://localhost:4321 -X POST -H \"Content-Type: application/json\" -d '{ \"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"getAccountInfo\", \"params\": [ \"vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg\", { \"encoding\": \"base58\" } ] }'" ));
+  FD_LOG_NOTICE(( "try running\npython3 test_http_server.py" ));
 
   signal( SIGINT, sighandler );
   while( !stopflag ) {
