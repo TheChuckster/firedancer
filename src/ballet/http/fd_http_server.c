@@ -96,7 +96,7 @@ fd_http_server_new( void *                     shmem,
 
   for( ulong i=0UL; i<params.max_connection_cnt; i++ ) {
     http->pollfds[ i ].fd = -1;
-    http->pollfds[ i ].events = POLLIN | POLLOUT;
+    http->pollfds[ i ].events = POLLIN;
     http->conns[ i ] = (struct fd_http_server_connection){
       .request_bytes = _request_bytes+i*params.max_request_len,
     };
@@ -104,7 +104,7 @@ fd_http_server_new( void *                     shmem,
 
   for( ulong i=0UL; i<params.max_ws_connection_cnt; i++ ) {
     http->pollfds[ params.max_connection_cnt+i ].fd = -1;
-    http->pollfds[ params.max_connection_cnt+i ].events = POLLIN | POLLOUT;
+    http->pollfds[ params.max_connection_cnt+i ].events = POLLIN;
     http->ws_conns[ i ] = (struct fd_http_server_ws_connection){
       .recv_bytes = _ws_recv_bytes+i*params.max_ws_recv_frame_len,
       .send_frames = _ws_send_frames+i*params.max_ws_send_frame_cnt,
@@ -360,7 +360,9 @@ read_conn_http( fd_http_server_t * http,
   }
 
   conn->state    = FD_HTTP_SERVER_CONNECTION_STATE_WRITING_HEADER;
-  conn->response = http->callbacks.request( conn_idx, path_nul_terminated, http->callback_ctx );
+  conn->response = http->callbacks.request_get( conn_idx, path_nul_terminated, http->callback_ctx );
+  http->pollfds[ conn_idx ].events |= POLLOUT;
+
 #ifdef FD_HTTP_SERVER_DEBUG
   FD_LOG_NOTICE(( "Received request \"%s\" from %lu (fd=%d) response code %lu", path_nul_terminated, conn_idx, http->pollfds[ conn_idx ].fd, conn->response.status ));
 #endif
@@ -520,6 +522,7 @@ write_conn_http( fd_http_server_t * http,
   ulong         response_len;
   switch( conn->state ) {
     case FD_HTTP_SERVER_CONNECTION_STATE_READING:
+      http->pollfds[ conn_idx ].events &= ~POLLOUT;
       return; /* No data staged for write yet. */
     case FD_HTTP_SERVER_CONNECTION_STATE_WRITING_HEADER:
       switch( conn->response.status ) {
@@ -616,6 +619,7 @@ write_conn_http( fd_http_server_t * http,
         if( conn->response.body_free != NULL ) {
           conn->response.body_free( conn->response.body, conn->response.body_free_ctx );
         }
+        http->pollfds[ conn_idx ].events &= ~POLLOUT;
         close_conn( http, conn_idx, FD_HTTP_SERVER_CONNECTION_CLOSE_OK );
         break;
     }

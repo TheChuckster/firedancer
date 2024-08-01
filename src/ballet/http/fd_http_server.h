@@ -77,7 +77,7 @@ struct fd_http_server_response {
 typedef struct fd_http_server_response fd_http_server_response_t;
 
 struct fd_http_server_callbacks {
-  /* Handle an incoming HTTP request.  The connection ID is a unique
+  /* Handle an incoming HTTP GET request.  The connection ID is a unique
      identifier for the lifetime of the connection, and will be provided
      to close to indicate that the connection is closed.
 
@@ -85,16 +85,16 @@ struct fd_http_server_callbacks {
      "/img/monkeys/gorilla.jpg", and ctx is the context pointer provided
      to fd_http_server_new. */
 
-  fd_http_server_response_t ( * request    )( ulong connection_id, char const * path, void * ctx );
+  fd_http_server_response_t ( * request_get )( ulong connection_id, char const * path, void * ctx );
 
   /* Close an HTTP request.  This is called back once all the data has
      been sent to the HTTP client, or an error condition occurs. */
 
-  void                      ( * close      )( ulong connection_id, int reason, void * ctx );
+  void                      ( * close       )( ulong connection_id, int reason, void * ctx );
 
-  void                      ( * ws_open    )( ulong connection_id, void * ctx );
-  void                      ( * ws_close   )( ulong connection_id, int reason, void * ctx );
-  void                      ( * ws_message )( ulong connection_id, uchar const * data, ulong data_len, void * ctx );
+  void                      ( * ws_open     )( ulong connection_id, void * ctx );
+  void                      ( * ws_close    )( ulong connection_id, int reason, void * ctx );
+  void                      ( * ws_message  )( ulong connection_id, uchar const * data, ulong data_len, void * ctx );
 };
 
 typedef struct fd_http_server_callbacks fd_http_server_callbacks_t;

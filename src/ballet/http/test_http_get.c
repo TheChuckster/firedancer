@@ -15,7 +15,7 @@ static void response_free( uchar const * orig_body, void * free_ctx ) {
 }
 
 static fd_http_server_response_t
-request( ulong connection_id, char const * path, void * ctx ) {
+request_get( ulong connection_id, char const * path, void * ctx ) {
   FD_LOG_NOTICE(( "id=%lu path=\"%s\" ctx=%lx", connection_id, path, (ulong)ctx ));
   static const char* TEXT = "{\"jsonrpc\": \"2.0\", \"result\": {\"absoluteSlot\": 166598, \"blockHeight\": 166500, \"epoch\": 27, \"slotIndex\": 2790, \"slotsInEpoch\": 8192, \"transactionCount\": 22661093}, \"id\": 1}";
   fd_http_server_response_t response = {
@@ -42,7 +42,7 @@ main( int     argc,
     .max_ws_send_frame_cnt = 100
   };
   fd_http_server_callbacks_t callbacks = {
-    .request = request,
+    .request_get = request_get,
     .close = NULL,
     .ws_open = NULL,
     .ws_close = NULL,
@@ -52,6 +52,8 @@ main( int     argc,
   fd_http_server_t * server = fd_http_server_join( fd_http_server_new( server_mem, params, callbacks, NULL ) );
 
   FD_TEST( fd_http_server_listen( server, 4321U ) != NULL );
+
+  FD_LOG_NOTICE(( "try running\ncurl http://localhost:4321/hello/from/the/magic/tavern" ));
 
   signal( SIGINT, sighandler );
   while( !stopflag ) {
