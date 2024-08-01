@@ -89,7 +89,7 @@ struct fd_http_server_callbacks {
 
   /* Handle an incoming HTTP POST request. */
 
-  fd_http_server_response_t ( * request_post )( ulong connection_id, char const * path, uchar const * data, ulong data_len, void * ctx );
+  fd_http_server_response_t ( * request_post )( ulong connection_id, char const * path, char const * content_type, uchar const * data, ulong data_len, void * ctx );
 
   /* Close an HTTP request.  This is called back once all the data has
      been sent to the HTTP client, or an error condition occurs. */

@@ -17,11 +17,11 @@ static void response_free( uchar const * orig_body, void * free_ctx ) {
 static fd_http_server_response_t
 request_get( ulong connection_id, char const * path, void * ctx ) {
   FD_LOG_NOTICE(( "GET id=%lu path=\"%s\" ctx=%lx", connection_id, path, (ulong)ctx ));
-  static const char* TEXT = "{\"jsonrpc\": \"2.0\", \"result\": {\"absoluteSlot\": 166598, \"blockHeight\": 166500, \"epoch\": 27, \"slotIndex\": 2790, \"slotsInEpoch\": 8192, \"transactionCount\": 22661093}, \"id\": 1}";
+  static const char* TEXT = "<!doctype html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <title>Nothing</title> </head> <body> <h1>Hello, world!</h1> </body> </html>\r\n";
   fd_http_server_response_t response = {
     .status = 200,
     .upgrade_websocket = 0,
-    .content_type = "application/json",
+    .content_type = "text/html",
     .body = (const uchar*)strdup(TEXT),
     .body_len = strlen(TEXT),
     .body_free = response_free
@@ -30,12 +30,12 @@ request_get( ulong connection_id, char const * path, void * ctx ) {
 }
 
 static fd_http_server_response_t
-request_post( ulong connection_id, char const * path, uchar const * data, ulong data_len, void * ctx ) {
-  FD_LOG_NOTICE(( "POST id=%lu path=\"%s\" ctx=%lx", connection_id, path, (ulong)ctx ));
+request_post( ulong connection_id, char const * path, char const * content_type, uchar const * data, ulong data_len, void * ctx ) {
+  FD_LOG_NOTICE(( "POST id=%lu path=\"%s\" content_type=\"%s\" ctx=%lx", connection_id, path, content_type, (ulong)ctx ));
   fwrite(">>>", 1, 3, stdout);
   fwrite(data, 1, data_len, stdout);
   printf("<<<\n");
-  static const char* TEXT = "{\"jsonrpc\": \"2.0\", \"result\": {\"absoluteSlot\": 166598, \"blockHeight\": 166500, \"epoch\": 27, \"slotIndex\": 2790, \"slotsInEpoch\": 8192, \"transactionCount\": 22661093}, \"id\": 1}";
+  static const char* TEXT = "{\"jsonrpc\": \"2.0\", \"result\": {\"absoluteSlot\": 166598, \"blockHeight\": 166500, \"epoch\": 27, \"slotIndex\": 2790, \"slotsInEpoch\": 8192, \"transactionCount\": 22661093}, \"id\": 1}\r\n";
   fd_http_server_response_t response = {
     .status = 200,
     .upgrade_websocket = 0,

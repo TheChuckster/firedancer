@@ -297,12 +297,13 @@ read_conn_http( fd_http_server_t * http,
     return;
   }
 
-  ulong content_len;
+  ulong content_len = 0;
+  char content_type[128];
+  content_type[0] = '\0';
   if( method_len==3UL && strncmp( method, "GET", method_len )==0 ) {
-    content_len = 0;
+    /* No content */
 
   } else if( method_len==4UL && strncmp( method, "POST", method_len )==0 ) {
-    content_len = 0;
     for( ulong i=0UL; i<num_headers; i++ ) {
       if( FD_LIKELY( headers[ i ].name_len==14UL && !strncasecmp( headers[ i ].name, "Content-Length", 14UL ) ) ) {
         for( ulong j=0UL; j<headers[ i ].value_len; j++ ) {
@@ -323,6 +324,15 @@ read_conn_http( fd_http_server_t * http,
     if( conn->request_bytes_read < (uint)result + content_len ) {
       /* Read more content */
       return;
+    }
+
+    for( ulong i=0UL; i<num_headers; i++ ) {
+      if( FD_LIKELY( headers[ i ].name_len==12UL && !strncasecmp( headers[ i ].name, "Content-Type", 12UL ) ) ) {
+        ulong len = fd_ulong_min( headers[ i ].value_len, sizeof(content_type)-1U );
+        memcpy( content_type, headers[ i ].value, len );
+        content_type[len] = '\0';
+        break;
+      }
     }
 
   } else {
@@ -389,7 +399,7 @@ read_conn_http( fd_http_server_t * http,
 
   conn->state    = FD_HTTP_SERVER_CONNECTION_STATE_WRITING_HEADER;
   if( content_len ) {
-    conn->response = http->callbacks.request_post( conn_idx, path_nul_terminated, (const uchar*)conn->request_bytes + (uint)result, content_len, http->callback_ctx );
+    conn->response = http->callbacks.request_post( conn_idx, path_nul_terminated, content_type, (const uchar*)conn->request_bytes + (uint)result, content_len, http->callback_ctx );
   } else {
     conn->response = http->callbacks.request_get( conn_idx, path_nul_terminated, http->callback_ctx );
   }
