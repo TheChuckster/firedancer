@@ -16,7 +16,25 @@ static void response_free( uchar const * orig_body, void * free_ctx ) {
 
 static fd_http_server_response_t
 request_get( ulong connection_id, char const * path, void * ctx ) {
-  FD_LOG_NOTICE(( "id=%lu path=\"%s\" ctx=%lx", connection_id, path, (ulong)ctx ));
+  FD_LOG_NOTICE(( "GET id=%lu path=\"%s\" ctx=%lx", connection_id, path, (ulong)ctx ));
+  static const char* TEXT = "{\"jsonrpc\": \"2.0\", \"result\": {\"absoluteSlot\": 166598, \"blockHeight\": 166500, \"epoch\": 27, \"slotIndex\": 2790, \"slotsInEpoch\": 8192, \"transactionCount\": 22661093}, \"id\": 1}";
+  fd_http_server_response_t response = {
+    .status = 200,
+    .upgrade_websocket = 0,
+    .content_type = "application/json",
+    .body = (const uchar*)strdup(TEXT),
+    .body_len = strlen(TEXT),
+    .body_free = response_free
+  };
+  return response;
+}
+
+static fd_http_server_response_t
+request_post( ulong connection_id, char const * path, uchar const * data, ulong data_len, void * ctx ) {
+  FD_LOG_NOTICE(( "POST id=%lu path=\"%s\" ctx=%lx", connection_id, path, (ulong)ctx ));
+  fwrite(">>>", 1, 3, stdout);
+  fwrite(data, 1, data_len, stdout);
+  printf("<<<\n");
   static const char* TEXT = "{\"jsonrpc\": \"2.0\", \"result\": {\"absoluteSlot\": 166598, \"blockHeight\": 166500, \"epoch\": 27, \"slotIndex\": 2790, \"slotsInEpoch\": 8192, \"transactionCount\": 22661093}, \"id\": 1}";
   fd_http_server_response_t response = {
     .status = 200,
@@ -43,6 +61,7 @@ main( int     argc,
   };
   fd_http_server_callbacks_t callbacks = {
     .request_get = request_get,
+    .request_post = request_post,
     .close = NULL,
     .ws_open = NULL,
     .ws_close = NULL,
@@ -53,7 +72,7 @@ main( int     argc,
 
   FD_TEST( fd_http_server_listen( server, 4321U ) != NULL );
 
-  FD_LOG_NOTICE(( "try running\ncurl http://localhost:4321/hello/from/the/magic/tavern" ));
+  FD_LOG_NOTICE(( "try running\ncurl http://localhost:4321/hello/from/the/magic/tavern\ncurl http://localhost:4321 -X POST -H \"Content-Type: application/json\" -d '{ \"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"getAccountInfo\", \"params\": [ \"vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg\", { \"encoding\": \"base58\" } ] }'" ));
 
   signal( SIGINT, sighandler );
   while( !stopflag ) {

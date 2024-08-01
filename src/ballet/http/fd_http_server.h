@@ -85,16 +85,20 @@ struct fd_http_server_callbacks {
      "/img/monkeys/gorilla.jpg", and ctx is the context pointer provided
      to fd_http_server_new. */
 
-  fd_http_server_response_t ( * request_get )( ulong connection_id, char const * path, void * ctx );
+  fd_http_server_response_t ( * request_get  )( ulong connection_id, char const * path, void * ctx );
+
+  /* Handle an incoming HTTP POST request. */
+
+  fd_http_server_response_t ( * request_post )( ulong connection_id, char const * path, uchar const * data, ulong data_len, void * ctx );
 
   /* Close an HTTP request.  This is called back once all the data has
      been sent to the HTTP client, or an error condition occurs. */
 
-  void                      ( * close       )( ulong connection_id, int reason, void * ctx );
+  void                      ( * close        )( ulong connection_id, int reason, void * ctx );
 
-  void                      ( * ws_open     )( ulong connection_id, void * ctx );
-  void                      ( * ws_close    )( ulong connection_id, int reason, void * ctx );
-  void                      ( * ws_message  )( ulong connection_id, uchar const * data, ulong data_len, void * ctx );
+  void                      ( * ws_open      )( ulong connection_id, void * ctx );
+  void                      ( * ws_close     )( ulong connection_id, int reason, void * ctx );
+  void                      ( * ws_message   )( ulong connection_id, uchar const * data, ulong data_len, void * ctx );
 };
 
 typedef struct fd_http_server_callbacks fd_http_server_callbacks_t;
