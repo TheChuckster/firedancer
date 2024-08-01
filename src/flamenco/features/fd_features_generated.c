@@ -693,7 +693,8 @@ fd_feature_id_t const ids[] = {
   { .index      = offsetof(fd_features_t, set_exempt_rent_epoch_max)>>3,
     .id         = {"\x49\x4e\x98\x21\x34\x4b\x72\xe0\x04\xd2\x66\xa2\x2e\xf9\xfb\x20\xbd\xba\x5a\xad\xec\xe7\xf6\xbc\x0a\x93\xe4\xd1\x83\xe0\xfd\x8f"},
                   /* 5wAGiy15X1Jb2hkHnPDCM8oB9V42VNA9ftNVFK84dEgv */
-    .name       = "set_exempt_rent_epoch_max" },
+    .name       = "set_exempt_rent_epoch_max",
+    .cleaned_up = 1180 },
 
   { .index      = offsetof(fd_features_t, relax_authority_signer_check_for_lookup_table_creation)>>3,
     .id         = {"\xd4\xaa\xef\x53\x4b\x5a\xa1\xad\x90\xf8\x49\xb9\x13\x45\x25\x3c\x4c\x39\x46\x28\xb4\xb6\xb4\xfa\x41\x0d\xb5\x1e\xa1\x4f\xa8\xf5"},
@@ -1131,6 +1132,11 @@ fd_feature_id_t const ids[] = {
                   /* zkhiy5oLowR7HY4zogXjCjeMXyruLqBwSWH21qcFtnv */
     .name       = "zk_elgamal_proof_program_enabled" },
 
+  { .index      = offsetof(fd_features_t, move_stake_and_move_lamports_ixs)>>3,
+    .id         = {"\x61\xf9\x9e\xbb\xb5\x47\x90\x0b\xb6\x5d\x66\x44\xb8\x45\xca\x36\xc5\xaf\x9f\x6f\xe1\x6d\x73\x7e\x83\x64\xb5\x59\x1c\x46\x2b\x63"},
+                  /* 7bTK6Jis8Xpfrs8ZoUfiMDPazTcdPcTWheZFJTA5Z6X4 */
+    .name       = "move_stake_and_move_lamports_ixs" },
+
   { .index = ULONG_MAX }
 };
 
@@ -1342,6 +1348,7 @@ fd_feature_id_query( ulong prefix ) {
   case 0xafe148ad652172dd: return &ids[ 197 ];
   case 0x91a7af96555ea309: return &ids[ 198 ];
   case 0x8e1411a93085cb0e: return &ids[ 199 ];
+  case 0x0b9047b5bb9ef961: return &ids[ 200 ];
   default: break;
   }
 
@@ -1550,5 +1557,6 @@ FD_STATIC_ASSERT( offsetof( fd_features_t, simplify_alt_bn128_syscall_error_code
 FD_STATIC_ASSERT( offsetof( fd_features_t, abort_on_invalid_curve                                  )>>3==197UL, layout );
 FD_STATIC_ASSERT( offsetof( fd_features_t, ed25519_precompile_verify_strict                        )>>3==198UL, layout );
 FD_STATIC_ASSERT( offsetof( fd_features_t, zk_elgamal_proof_program_enabled                        )>>3==199UL, layout );
+FD_STATIC_ASSERT( offsetof( fd_features_t, move_stake_and_move_lamports_ixs                        )>>3==200UL, layout );
 
 FD_STATIC_ASSERT( sizeof( fd_features_t )>>3==FD_FEATURE_ID_CNT, layout );
