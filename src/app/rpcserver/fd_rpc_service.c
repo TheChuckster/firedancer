@@ -469,10 +469,12 @@ method_getBlocks(struct fd_web_replier* replier, struct json_values* values, fd_
   ulong endslotn = (endslot == NULL ? ULONG_MAX : (ulong)(*(long*)endslot));
 
   fd_blockstore_t * blockstore = ctx->global->blockstore;
+  /* FIX ME
   if (startslotn < blockstore->min)
     startslotn = blockstore->min;
   if (endslotn > blockstore->max)
     endslotn = blockstore->max;
+  */
 
   fd_textstream_t * ts = fd_web_replier_textstream(replier);
   fd_textstream_sprintf(ts, "{\"jsonrpc\":\"2.0\",\"result\":[");
@@ -522,15 +524,17 @@ method_getBlocksWithLimit(struct fd_web_replier* replier, struct json_values* va
   ulong limitn = (ulong)(*(long*)limit);
 
   fd_blockstore_t * blockstore = ctx->global->blockstore;
+  /* FIX ME
   if (startslotn < blockstore->min)
     startslotn = blockstore->min;
+  */
   if (limitn > 500000)
     limitn = 500000;
 
   fd_textstream_t * ts = fd_web_replier_textstream(replier);
   fd_textstream_sprintf(ts, "{\"jsonrpc\":\"2.0\",\"result\":[");
   uint cnt = 0;
-  for ( ulong i = startslotn; i <= blockstore->max && cnt < limitn; ++i ) {
+  for ( ulong i = startslotn; /* FIX ME i <= blockstore->max && */ cnt < limitn; ++i ) {
     fd_block_map_t meta[1];
     int ret = fd_blockstore_block_map_query_volatile(blockstore, i, meta);
     if (!ret) {
@@ -659,7 +663,7 @@ method_getFirstAvailableBlock(struct fd_web_replier* replier, struct json_values
   fd_blockstore_t * blockstore = ctx->global->blockstore;
   fd_textstream_t * ts = fd_web_replier_textstream(replier);
   fd_textstream_sprintf(ts, "{\"jsonrpc\":\"2.0\",\"result\":%lu,\"id\":%lu}" CRLF,
-                        blockstore->min, ctx->call_id);
+                        blockstore->root, ctx->call_id);
   fd_web_replier_done(replier);
   return 0;
 }
@@ -816,7 +820,7 @@ method_getMaxShredInsertSlot(struct fd_web_replier* replier, struct json_values*
   fd_blockstore_t * blockstore = ctx->global->blockstore;
   fd_textstream_t * ts = fd_web_replier_textstream(replier);
   fd_textstream_sprintf(ts, "{\"jsonrpc\":\"2.0\",\"result\":%lu,\"id\":%lu}" CRLF,
-                        blockstore->max, ctx->call_id);
+                        blockstore->root, ctx->call_id);
   fd_web_replier_done(replier);
   return 0;
 }
