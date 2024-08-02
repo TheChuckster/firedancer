@@ -67,6 +67,8 @@ agave_boot( config_t * config ) {
   ADD( "--identity", config->consensus.identity_path );
   if( strcmp( config->consensus.vote_account_path, "" ) )
     ADD( "--vote-account", config->consensus.vote_account_path );
+  for( ulong i=0; i<config->consensus.authorized_voter_paths_cnt; i++ )
+    ADD( "--authorized-voter", config->consensus.authorized_voter_paths[ i ] );
   if( !config->consensus.snapshot_fetch ) ADD1( "--no-snapshot-fetch" );
   if( !config->consensus.genesis_fetch  ) ADD1( "--no-genesis-fetch"  );
   if( !config->consensus.poh_speed_test ) ADD1( "--no-poh-speed-test" );
