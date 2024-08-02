@@ -12,7 +12,6 @@ static void usage( char const * progname ) {
   fprintf( stderr, " --wksp-name-funk <workspace name>          funk workspace name\n" );
   fprintf( stderr, " --wksp-name-blockstore <workspace name>    blockstore workspace name\n" );
   fprintf( stderr, " --wksp-name-replay-notify <workspace name> replay notification workspace name\n" );
-  fprintf( stderr, " --num-threads <count>                      number of http service threads\n" );
   fprintf( stderr, " --port <port number>                       http service port\n" );
 }
 */
@@ -64,10 +63,13 @@ init_args( int * argc, char *** argv, fd_rpcserver_args_t * args ) {
     FD_LOG_ERR(( "failed to join a replay notifier" ));
   }
 
-  args->num_threads = fd_env_strip_cmdline_ulong( argc, argv, "--num-threads", NULL, 10 );
-
   args->port = (ushort)fd_env_strip_cmdline_ulong( argc, argv, "--port", NULL, 8899 );
-  args->ws_port = (ushort)fd_env_strip_cmdline_ulong( argc, argv, "--ws-port", NULL, 8900 );
+
+  args->params.max_connection_cnt =    (ushort)fd_env_strip_cmdline_ulong( argc, argv, "--max-connection-cnt",    NULL, 10 );
+  args->params.max_ws_connection_cnt = (ushort)fd_env_strip_cmdline_ulong( argc, argv, "--max-ws-connection-cnt", NULL, 10 );
+  args->params.max_request_len =       (ushort)fd_env_strip_cmdline_ulong( argc, argv, "--max-request-len",       NULL, 1<<16 );
+  args->params.max_ws_recv_frame_len = (ushort)fd_env_strip_cmdline_ulong( argc, argv, "--max-ws-recv-frame-len", NULL, 2048 );
+  args->params.max_ws_send_frame_cnt = (ushort)fd_env_strip_cmdline_ulong( argc, argv, "--max-ws-send-frame-cnt", NULL, 100 );
 }
 
 static int stopflag = 0;

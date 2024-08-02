@@ -1,5 +1,4 @@
 #include "fd_rpc_service.h"
-#include <microhttpd.h>
 #include "fd_methods.h"
 #include "fd_webserver.h"
 #include "../../flamenco/types/fd_types.h"
@@ -15,7 +14,7 @@
 #define MATCH_STRING(_text_,_text_sz_,_str_) (_text_sz_ == sizeof(_str_)-1 && memcmp(_text_, _str_, sizeof(_str_)-1) == 0)
 
 struct fd_ws_subscription {
-  fd_websocket_ctx_t * socket;
+  ulong conn_id;
   long meth_id;
   long call_id;
   ulong subsc_id;

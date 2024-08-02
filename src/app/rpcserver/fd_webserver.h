@@ -3,24 +3,19 @@
 
 #include "fd_methods.h"
 #include "../../util/textstream/fd_textstream.h"
+#include "../../ballet/http/fd_http_server.h"
 
 struct fd_webserver {
+  fd_http_server_t * server;
   void * cb_arg;
-  struct MHD_Daemon * daemon;
-  struct MHD_Daemon * ws_daemon;
-  int ws_epoll_fd;
 };
 typedef struct fd_webserver fd_webserver_t;
 
-typedef struct fd_websocket_ctx fd_websocket_ctx_t;
-
-int fd_webserver_start(ulong num_threads, ushort portno, ushort ws_portno, fd_webserver_t * ws, void * cb_arg);
+int fd_webserver_start(ushort portno, fd_http_server_params_t params, fd_webserver_t * ws, void * cb_arg );
 
 int fd_webserver_stop(fd_webserver_t * ws);
 
-void fd_webserver_ws_poll(fd_webserver_t * ws);
-
-void fd_webserver_ws_closed(fd_websocket_ctx_t * wsctx, void * cb_arg);
+void fd_webserver_poll(fd_webserver_t * ws);
 
 #ifndef KEYW_UNKNOWN
 #define KEYW_UNKNOWN -1L
@@ -34,17 +29,16 @@ void fd_webserver_method_generic(struct fd_web_replier* replier, struct json_val
 fd_textstream_t * fd_web_replier_textstream(struct fd_web_replier* replier);
 void fd_web_replier_done(struct fd_web_replier* replier);
 
-typedef struct fd_websocket_ctx fd_websocket_ctx_t;
-int fd_webserver_ws_subscribe(struct json_values* values, fd_websocket_ctx_t * ctx, void * cb_arg);
+int fd_webserver_ws_subscribe(struct json_values* values, ulong conn_id, void * cb_arg);
 
-void fd_web_ws_reply( fd_websocket_ctx_t * ctx, fd_textstream_t * ts);
+void fd_web_ws_reply( fd_webserver_t * ws, ulong conn_id, fd_textstream_t * ts);
 
 void fd_web_replier_error( struct fd_web_replier* replier, const char* format, ... )
   __attribute__ ((format (printf, 2, 3)));
 void fd_web_replier_simple_error( struct fd_web_replier* replier, const char* text, uint text_size);
 
-void fd_web_ws_error( fd_websocket_ctx_t * ctx, const char* format, ... )
-  __attribute__ ((format (printf, 2, 3)));
-void fd_web_ws_simple_error( fd_websocket_ctx_t * ctx, const char* text, uint text_size);
+void fd_web_ws_error( fd_webserver_t * ws, ulong conn_id, const char* format, ... )
+  __attribute__ ((format (printf, 3, 4)));
+void fd_web_ws_simple_error( fd_webserver_t * ws, ulong conn_id, const char* text, uint text_size);
 
 #endif /* HEADER_fd_src_tango_webserver_fd_webserver_h */
