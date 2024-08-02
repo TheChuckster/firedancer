@@ -10,11 +10,6 @@ static void sighandler(int sig) {
   stopflag = 1;
 }
 
-static void response_free( uchar const * orig_body, void * free_ctx ) {
-  (void)free_ctx;
-  free((void*)orig_body);
-}
-
 static fd_http_server_response_t
 request_get( ulong connection_id, char const * path, int upgrade_websocket, void * ctx ) {
   FD_LOG_NOTICE(( "GET id=%lu path=\"%s\" ctx=%lx", connection_id, path, (ulong)ctx ));
@@ -35,7 +30,6 @@ request_get( ulong connection_id, char const * path, int upgrade_websocket, void
     .content_type = "text/html",
     .body = (const uchar*)strdup(TEXT),
     .body_len = strlen(TEXT),
-    .body_free = response_free
   };
   return response;
 }
@@ -53,9 +47,14 @@ request_post( ulong connection_id, char const * path, char const * content_type,
     .content_type = "application/json",
     .body = (const uchar*)strdup(TEXT),
     .body_len = strlen(TEXT),
-    .body_free = response_free
   };
   return response;
+}
+
+static void
+http_close( ulong connection_id, int reason, fd_http_server_response_t * last_response, void * ctx ) {
+  FD_LOG_NOTICE(( "CLOSE id=%lu reason=%d ctx=%lx", connection_id, reason, (ulong)ctx ));
+  if( last_response->body ) free( (uchar*)last_response->body );
 }
 
 struct conn_list {
@@ -99,10 +98,15 @@ ws_send_all( fd_http_server_t * server, struct conn_list * conns ) {
     fd_http_server_ws_frame_t data = {
       .data = (const uchar*)strdup(TEXT),
       .data_len = strlen(TEXT),
-      .data_free = response_free
     };
     fd_http_server_ws_send( server, conns->conn_list[i], data );
   }
+}
+
+static void
+ws_sent( ulong connection_id, fd_http_server_ws_frame_t * frame, void * ctx ) {
+  FD_LOG_NOTICE(( "WS SENT id=%lu ctx=%lx", connection_id, (ulong)ctx ));
+  free((uchar*)frame->data);
 }
 
 int
@@ -123,10 +127,11 @@ main( int     argc,
   fd_http_server_callbacks_t callbacks = {
     .request_get = request_get,
     .request_post = request_post,
-    .close = NULL,
+    .close = http_close,
     .ws_open = ws_open,
     .ws_close = ws_close,
-    .ws_message = ws_message
+    .ws_message = ws_message,
+    .ws_sent = ws_sent
   };
 
   void* server_mem = aligned_alloc( fd_http_server_align(), fd_http_server_footprint( params ) );

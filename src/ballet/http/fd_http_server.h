@@ -59,8 +59,6 @@ typedef struct fd_http_server_params fd_http_server_params_t;
    websocket, after which the handler will begin receiving websocket
    frames. */
 
-typedef void (*fd_http_server_response_free)( uchar const * orig_body, void * free_ctx );
-
 struct fd_http_server_response {
   ulong status;              /* Status code of the HTTP response */
   int   upgrade_websocket;   /* 1 if we should send a websocket upgrade response */
@@ -70,9 +68,16 @@ struct fd_http_server_response {
   uchar const * body;        /* Response body to send, only sent if status is 200 */
   ulong         body_len;    /* Length of the response body */
 
-  fd_http_server_response_free body_free; /* Function used to free the body after it is sent */
-  void *                       body_free_ctx;
+  void *        ctx;         /* Specific context for this response */
 };
+
+struct fd_http_server_ws_frame {
+  uchar const * data;
+  ulong         data_len;
+  void *        ctx;
+};
+
+typedef struct fd_http_server_ws_frame fd_http_server_ws_frame_t;
 
 typedef struct fd_http_server_response fd_http_server_response_t;
 
@@ -94,10 +99,11 @@ struct fd_http_server_callbacks {
   /* Close an HTTP request.  This is called back once all the data has
      been sent to the HTTP client, or an error condition occurs. */
 
-  void                      ( * close        )( ulong connection_id, int reason, void * ctx );
+  void                      ( * close        )( ulong connection_id, int reason, fd_http_server_response_t * last_response, void * ctx );
 
   void                      ( * ws_open      )( ulong connection_id, void * ctx );
   void                      ( * ws_close     )( ulong connection_id, int reason, void * ctx );
+  void                      ( * ws_sent      )( ulong connection_id, fd_http_server_ws_frame_t * frame, void * ctx );
   void                      ( * ws_message   )( ulong connection_id, uchar const * data, ulong data_len, void * ctx );
 };
 
@@ -123,15 +129,6 @@ struct fd_http_server_connection {
   /* The memory for the request is placed at the end of the struct here...
   char request[ ]; */
 };
-
-struct fd_http_server_ws_frame {
-  uchar const *                data;
-  ulong                        data_len;
-  fd_http_server_response_free data_free; /* Function used to free the body after it is sent, NULL if none */
-  void *                       data_free_ctx;
-};
-
-typedef struct fd_http_server_ws_frame fd_http_server_ws_frame_t;
 
 #define FD_HTTP_SERVER_PONG_STATE_NONE    0
 #define FD_HTTP_SERVER_PONG_STATE_WAITING 1

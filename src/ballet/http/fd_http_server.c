@@ -220,25 +220,18 @@ close_conn( fd_http_server_t * http,
   http->pollfds[ conn_idx ].fd = -1;
   http->pollfds[ conn_idx ].events &= ~POLLOUT;
   if( FD_LIKELY( conn_idx<http->max_conns ) ) {
-    if( FD_LIKELY( http->callbacks.close    ) ) http->callbacks.close( conn_idx, reason, http->callback_ctx );
     struct fd_http_server_connection * conn = &http->conns[ conn_idx ];
-    if( conn->response.body_free != NULL ) {
-      conn->response.body_free( conn->response.body, conn->response.body_free_ctx );
-      conn->response.body_free = NULL;
-    }
+    if( FD_LIKELY( http->callbacks.close    ) ) http->callbacks.close( conn_idx, reason, &conn->response, http->callback_ctx );
 
   } else {
-    if( FD_LIKELY( http->callbacks.ws_close ) ) http->callbacks.ws_close( conn_idx-http->max_conns, reason, http->callback_ctx );
     struct fd_http_server_ws_connection * conn = &http->ws_conns[ conn_idx-http->max_conns ];
     while( conn->send_frame_cnt ) {
       fd_http_server_ws_frame_t * frame = &conn->send_frames[ conn->send_frame_idx ];
-      if( frame->data_free != NULL ) {
-        frame->data_free( frame->data, frame->data_free_ctx );
-        frame->data_free = NULL;
-      }
+      if( FD_LIKELY( http->callbacks.ws_sent ) ) http->callbacks.ws_sent( conn_idx-http->max_conns, frame, http->callback_ctx );
       conn->send_frame_idx   = (conn->send_frame_idx+1UL) % http->max_ws_send_frame_cnt;
       conn->send_frame_cnt--;
     }
+    if( FD_LIKELY( http->callbacks.ws_close ) ) http->callbacks.ws_close( conn_idx-http->max_conns, reason, http->callback_ctx );
   }
 }
 
@@ -261,6 +254,7 @@ accept_conns( fd_http_server_t * http ) {
     http->conns[ http->conn_id ].state                  = FD_HTTP_SERVER_CONNECTION_STATE_READING;
     http->conns[ http->conn_id ].request_bytes_read     = 0UL;
     http->conns[ http->conn_id ].response_bytes_written = 0UL;
+    memset( &http->conns[ http->conn_id ].response, 0, sizeof(fd_http_server_response_t) );
     http->conn_id = (http->conn_id+1UL) % http->max_conns;
 
     int optval = 2<<20;
@@ -797,10 +791,7 @@ write_conn_ws( fd_http_server_t * http,
       conn->send_frame_bytes_written += (ulong)sz;
       if( FD_UNLIKELY( conn->send_frame_bytes_written==frame->data_len ) ) {
 
-        if( frame->data_free != NULL ) {
-          frame->data_free( frame->data, frame->data_free_ctx );
-          frame->data_free = NULL;
-        }
+        if( FD_LIKELY( http->callbacks.ws_sent ) ) http->callbacks.ws_sent( conn_idx-http->max_conns, frame, http->callback_ctx );
 
         conn->send_frame_state = FD_HTTP_SERVER_SEND_FRAME_STATE_HEADER;
         conn->send_frame_idx   = (conn->send_frame_idx+1UL) % http->max_ws_send_frame_cnt;
@@ -836,13 +827,8 @@ fd_http_server_ws_send( fd_http_server_t *        http,
 void
 fd_http_server_ws_broadcast( fd_http_server_t *   http,
                              fd_http_server_ws_frame_t data ) {
-  ulong cnt = 0;
   for( ulong i=0UL; i<http->max_ws_conns; i++ ) {
     if( FD_LIKELY( http->pollfds[ http->max_conns+i ].fd==-1 ) ) continue;
-
-    if( ++cnt > 1 && data.data_free != NULL ) {
-      FD_LOG_CRIT(( "you cannot broadcast a message with data_free!=NULL" ));
-    }
 
     fd_http_server_ws_send( http, i, data );
   }
