@@ -125,8 +125,10 @@ struct fd_http_server_connection {
 };
 
 struct fd_http_server_ws_frame {
-  uchar const * data;
-  ulong         data_len;
+  uchar const *                data;
+  ulong                        data_len;
+  fd_http_server_response_free data_free; /* Function used to free the body after it is sent, NULL if none */
+  void *                       data_free_ctx;
 };
 
 typedef struct fd_http_server_ws_frame fd_http_server_ws_frame_t;
@@ -245,15 +247,13 @@ fd_http_server_listen( fd_http_server_t * http,
                        ushort             port );
 
 void
-fd_http_server_ws_send( fd_http_server_t * http,
-                        ulong              conn_id,
-                        uchar const *      data,
-                        ulong              data_len );
+fd_http_server_ws_send( fd_http_server_t *        http,
+                        ulong                     conn_id,
+                        fd_http_server_ws_frame_t data );
 
 void
-fd_http_server_ws_broadcast( fd_http_server_t * http,
-                             uchar const *      data,
-                             ulong              data_len );
+fd_http_server_ws_broadcast( fd_http_server_t *        http,
+                             fd_http_server_ws_frame_t data );
 
 void
 fd_http_server_poll( fd_http_server_t * http );

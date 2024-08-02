@@ -246,6 +246,11 @@ accept_conns( fd_http_server_t * http ) {
     http->conns[ http->conn_id ].response_bytes_written = 0UL;
     http->conn_id = (http->conn_id+1UL) % http->max_conns;
 
+    int optval = 2<<20;
+    if( setsockopt( fd, SOL_SOCKET, SO_SNDBUF, (char *)&optval, sizeof(int) ) < 0 ) {
+      FD_LOG_ERR(( "setsockopt failed (%d-%s)", errno, fd_io_strerror( errno ) ));
+    }
+
 #ifdef FD_HTTP_SERVER_DEBUG
     FD_LOG_NOTICE(( "Accepted connection %lu (fd=%d)", (http->conn_id+http->max_conns-1UL) % http->max_conns, fd ));
 #endif
@@ -774,10 +779,20 @@ write_conn_ws( fd_http_server_t * http,
 
       conn->send_frame_bytes_written += (ulong)sz;
       if( FD_UNLIKELY( conn->send_frame_bytes_written==frame->data_len ) ) {
+
+        if( frame->data_free != NULL ) {
+          frame->data_free( frame->data, frame->data_free_ctx );
+        }
+
         conn->send_frame_state = FD_HTTP_SERVER_SEND_FRAME_STATE_HEADER;
         conn->send_frame_idx   = (conn->send_frame_idx+1UL) % http->max_ws_send_frame_cnt;
         conn->send_frame_cnt--;
         conn->send_frame_bytes_written = 0UL;
+
+        if( conn->send_frame_cnt == 0 ) {
+          http->pollfds[ conn_idx ].events &= ~POLLOUT;
+        }
+
       }
       break;
     }
@@ -785,10 +800,9 @@ write_conn_ws( fd_http_server_t * http,
 }
 
 void
-fd_http_server_ws_send( fd_http_server_t * http,
-                        ulong              connection_id,
-                        uchar const *      data,
-                        ulong              data_len ) {
+fd_http_server_ws_send( fd_http_server_t *        http,
+                        ulong                     connection_id,
+                        fd_http_server_ws_frame_t data ) {
   struct fd_http_server_ws_connection * conn = &http->ws_conns[ connection_id ];
 
   if( FD_UNLIKELY( conn->send_frame_cnt==http->max_ws_send_frame_cnt ) ) {
@@ -796,21 +810,23 @@ fd_http_server_ws_send( fd_http_server_t * http,
     return;
   }
 
-  fd_http_server_ws_frame_t * frame = &conn->send_frames[ (conn->send_frame_idx+conn->send_frame_cnt) % http->max_ws_send_frame_cnt ];
-  frame->data_len = data_len;
-  frame->data     = data;
-
+  conn->send_frames[ (conn->send_frame_idx+conn->send_frame_cnt) % http->max_ws_send_frame_cnt ] = data;
   conn->send_frame_cnt++;
+  http->pollfds[ http->max_conns+connection_id ].events |= POLLOUT;
 }
 
 void
-fd_http_server_ws_broadcast( fd_http_server_t * http,
-                             uchar const *      data,
-                             ulong              data_len ) {
+fd_http_server_ws_broadcast( fd_http_server_t *   http,
+                             fd_http_server_ws_frame_t data ) {
+  ulong cnt = 0;
   for( ulong i=0UL; i<http->max_ws_conns; i++ ) {
     if( FD_LIKELY( http->pollfds[ http->max_conns+i ].fd==-1 ) ) continue;
 
-    fd_http_server_ws_send( http, i, data, data_len );
+    if( ++cnt > 1 && data.data_free != NULL ) {
+      FD_LOG_CRIT(( "you cannot broadcast a message with data_free!=NULL" ));
+    }
+
+    fd_http_server_ws_send( http, i, data );
   }
 }
 
