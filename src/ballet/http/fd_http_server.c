@@ -218,10 +218,27 @@ close_conn( fd_http_server_t * http,
 #endif
   if( FD_UNLIKELY( -1==close( http->pollfds[ conn_idx ].fd ) ) ) FD_LOG_ERR(( "close failed (%i-%s)", errno, strerror( errno ) ));
   http->pollfds[ conn_idx ].fd = -1;
+  http->pollfds[ conn_idx ].events &= ~POLLOUT;
   if( FD_LIKELY( conn_idx<http->max_conns ) ) {
     if( FD_LIKELY( http->callbacks.close    ) ) http->callbacks.close( conn_idx, reason, http->callback_ctx );
+    struct fd_http_server_connection * conn = &http->conns[ conn_idx ];
+    if( conn->response.body_free != NULL ) {
+      conn->response.body_free( conn->response.body, conn->response.body_free_ctx );
+      conn->response.body_free = NULL;
+    }
+
   } else {
     if( FD_LIKELY( http->callbacks.ws_close ) ) http->callbacks.ws_close( conn_idx-http->max_conns, reason, http->callback_ctx );
+    struct fd_http_server_ws_connection * conn = &http->ws_conns[ conn_idx-http->max_conns ];
+    while( conn->send_frame_cnt ) {
+      fd_http_server_ws_frame_t * frame = &conn->send_frames[ conn->send_frame_idx ];
+      if( frame->data_free != NULL ) {
+        frame->data_free( frame->data, frame->data_free_ctx );
+        frame->data_free = NULL;
+      }
+      conn->send_frame_idx   = (conn->send_frame_idx+1UL) % http->max_ws_send_frame_cnt;
+      conn->send_frame_cnt--;
+    }
   }
 }
 
@@ -668,10 +685,6 @@ write_conn_http( fd_http_server_t * http,
         }
         break;
       case FD_HTTP_SERVER_CONNECTION_STATE_WRITING_BODY:
-        if( conn->response.body_free != NULL ) {
-          conn->response.body_free( conn->response.body, conn->response.body_free_ctx );
-        }
-        http->pollfds[ conn_idx ].events &= ~POLLOUT;
         close_conn( http, conn_idx, FD_HTTP_SERVER_CONNECTION_CLOSE_OK );
         break;
     }
@@ -782,6 +795,7 @@ write_conn_ws( fd_http_server_t * http,
 
         if( frame->data_free != NULL ) {
           frame->data_free( frame->data, frame->data_free_ctx );
+          frame->data_free = NULL;
         }
 
         conn->send_frame_state = FD_HTTP_SERVER_SEND_FRAME_STATE_HEADER;
