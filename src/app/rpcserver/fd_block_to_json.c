@@ -382,7 +382,7 @@ fd_block_to_json( fd_textstream_t * ts,
           uchar txn_out[FD_TXN_MAX_SZ];
           ulong pay_sz = 0;
           const uchar* raw = (const uchar *)blk_data + blockoff;
-          ulong txn_sz = fd_txn_parse_core(raw, fd_ulong_min(blk_sz - blockoff, FD_TXN_MTU), txn_out, NULL, &pay_sz, 0);
+          ulong txn_sz = fd_txn_parse_core(raw, fd_ulong_min(blk_sz - blockoff, FD_TXN_MTU), txn_out, NULL, &pay_sz);
           if ( txn_sz == 0 || txn_sz > FD_TXN_MAX_SZ ) {
             FD_LOG_WARNING( ( "failed to parse transaction %lu in microblock %lu",
                               txn_idx,
@@ -433,7 +433,7 @@ fd_block_to_json( fd_textstream_t * ts,
         uchar txn_out[FD_TXN_MAX_SZ];
         ulong pay_sz = 0;
         const uchar* raw = (const uchar *)blk_data + blockoff;
-        ulong txn_sz = fd_txn_parse_core(raw, fd_ulong_min(blk_sz - blockoff, FD_TXN_MTU), txn_out, NULL, &pay_sz, 0);
+        ulong txn_sz = fd_txn_parse_core(raw, fd_ulong_min(blk_sz - blockoff, FD_TXN_MTU), txn_out, NULL, &pay_sz);
         if ( txn_sz == 0 || txn_sz > FD_TXN_MAX_SZ ) {
           FD_LOG_WARNING( ( "failed to parse transaction %lu in microblock %lu",
                             txn_idx,

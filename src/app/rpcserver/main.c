@@ -50,8 +50,7 @@ init_args( int * argc, char *** argv, fd_rpcserver_args_t * args ) {
   if( args->blockstore == NULL ) {
     FD_LOG_ERR(( "failed to join a blockstore" ));
   }
-  FD_LOG_NOTICE(( "blockstore has slot min=%lu smr=%lu max=%lu",
-                  args->blockstore->min, args->blockstore->smr, args->blockstore->max ));
+  FD_LOG_NOTICE(( "blockstore has slot root=%lu", args->blockstore->root ));
   fd_wksp_mprotect( wksp, 1 );
 
   wksp_name = fd_env_strip_cmdline_cstr ( argc, argv, "--wksp-name-replay-notify", NULL, "fd1_replay_notif.wksp" );
