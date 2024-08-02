@@ -14,9 +14,7 @@ src/app/fdctl/version.h: src/app/fdctl/version.mk
 	echo "#define FDCTL_PATCH_VERSION $(FIREDANCER_VERSION_PATCH)UL" >> $@
 $(OBJDIR)/obj/app/fdctl/version.d: src/app/fdctl/version.h
 
-# When we don't have libagave_validator.a in the PHONY list, make fails
-# to realize that it has been updated. Not sure why this happens.
-.PHONY: fdctl cargo-validator cargo-solana rust solana check-solana-hash
+.PHONY: fdctl cargo-validator cargo-solana cargo-ledger-tool rust solana check-solana-hash
 
 # fdctl core
 $(call add-objs,main1 config config_parse caps utility keys ready mem spy help version,fd_fdctl)
@@ -62,9 +60,9 @@ $(call add-objs,configure/ethtool-gro,fd_fdctl)
 
 ifdef FD_HAS_NO_AGAVE
 ifdef FD_HAS_SECP256K1
-$(call make-lib,external_functions)
-$(call add-objs,external_functions,external_functions)
-$(call make-bin-rust,fdctl,main,fd_fdctl fd_choreo fd_disco fd_flamenco fd_funk fd_quic fd_tls fd_ip fd_reedsol fd_ballet fd_waltz fd_tango fd_util external_functions, $(SECP256K1_LIBS))
+$(call make-lib,external_rust_fn)
+$(call add-objs,external_rust_fn,external_rust_fn)
+$(call make-bin-rust,fdctl,main,fd_fdctl fd_choreo fd_disco fd_flamenco fd_funk fd_quic fd_tls fd_ip fd_reedsol fd_ballet fd_waltz fd_tango fd_util external_rust_fn, $(SECP256K1_LIBS))
 endif
 else
 $(call make-bin-rust,fdctl,main,fd_fdctl fd_disco fd_flamenco fd_funk fd_quic fd_tls fd_ip fd_reedsol fd_ballet fd_waltz fd_tango fd_util agave_validator)
@@ -106,6 +104,14 @@ check-agave-hash:
 # changed on the library side.
 cargo-validator: check-agave-hash
 cargo-solana: check-agave-hash
+cargo-ledger-tool: check-agave-hash
+
+# The agave-ledger-tool needs the definitions of some extern C functions
+export FD_OBJDIR=$(OBJDIR)
+ledger-tool-deps: src/app/fdctl/external_c_fn.c
+	$(CC) -c src/app/fdctl/external_c_fn.c -o $(OBJDIR)/obj/app/fdctl/external_c_fn.o
+	$(MKDIR) $(OBJDIR)/lib
+	$(AR) rcs $(OBJDIR)/lib/libfd_external_c_fn.a $(OBJDIR)/obj/app/fdctl/external_c_fn.o
 
 # Cargo build cannot cache the prior build if the command line changes,
 # for example if we did,
@@ -123,16 +129,22 @@ cargo-validator:
 	cd ./agave && env --unset=LDFLAGS RUSTFLAGS="$(RUSTFLAGS)" ./cargo build --release --lib -p agave-validator
 cargo-solana:
 	cd ./agave && env --unset=LDFLAGS RUSTFLAGS="$(RUSTFLAGS)" ./cargo build --release --bin solana
+cargo-ledger-tool: ledger-tool-deps
+	cd ./agave && env --unset=LDFLAGS RUSTFLAGS="$(RUSTFLAGS)" ./cargo build --release --bin agave-ledger-tool
 else ifeq ($(RUST_PROFILE),release-with-debug)
 cargo-validator:
 	cd ./agave && env --unset=LDFLAGS RUSTFLAGS="$(RUSTFLAGS)" ./cargo build --profile=release-with-debug --lib -p agave-validator
 cargo-solana:
 	cd ./agave && env --unset=LDFLAGS RUSTFLAGS="$(RUSTFLAGS)" ./cargo build --profile=release-with-debug --bin solana
+cargo-ledger-tool: ledger-tool-deps
+	cd ./agave && env --unset=LDFLAGS RUSTFLAGS="$(RUSTFLAGS)" ./cargo build --profile=release-with-debug --bin agave-ledger-tool
 else
 cargo-validator:
 	cd ./agave && env --unset=LDFLAGS RUSTFLAGS="$(RUSTFLAGS)" ./cargo build --lib -p agave-validator
 cargo-solana:
 	cd ./agave && env --unset=LDFLAGS RUSTFLAGS="$(RUSTFLAGS)" ./cargo build --bin solana
+cargo-ledger-tool: ledger-tool-deps
+	cd ./agave && env --unset=LDFLAGS RUSTFLAGS="$(RUSTFLAGS)" ./cargo build --bin agave-ledger-tool
 endif
 
 # We sleep as a workaround for a bizarre problem where the build system
@@ -145,6 +157,8 @@ agave/target/$(RUST_PROFILE)/libagave_validator.a: cargo-validator
 
 agave/target/$(RUST_PROFILE)/solana: cargo-solana
 
+agave/target/$(RUST_PROFILE)/agave-ledger-tool: cargo-ledger-tool
+
 $(OBJDIR)/lib/libagave_validator.a: agave/target/$(RUST_PROFILE)/libagave_validator.a
 	$(MKDIR) $(dir $@) && cp agave/target/$(RUST_PROFILE)/libagave_validator.a $@
 
@@ -153,7 +167,12 @@ fdctl: $(OBJDIR)/bin/fdctl
 $(OBJDIR)/bin/solana: agave/target/$(RUST_PROFILE)/solana
 	$(MKDIR) -p $(dir $@) && cp agave/target/$(RUST_PROFILE)/solana $@
 
-solana: $(OBJDIR)/bin/solana $(OBJDIR)/bin/solana
+solana: $(OBJDIR)/bin/solana
+
+$(OBJDIR)/bin/agave-ledger-tool: agave/target/$(RUST_PROFILE)/agave-ledger-tool
+	$(MKDIR) -p $(dir $@) && cp agave/target/$(RUST_PROFILE)/agave-ledger-tool $@
+
+agave-ledger-tool: $(OBJDIR)/bin/agave-ledger-tool
 
 endif
 endif
