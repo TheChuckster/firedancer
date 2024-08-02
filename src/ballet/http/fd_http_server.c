@@ -511,6 +511,7 @@ read_conn_ws( fd_http_server_t * http,
     }
     conn->recv_bytes_parsed = 0UL;
     conn->recv_bytes_read -= frame_len;
+    http->pollfds[ conn_idx ].events |= POLLOUT;
     return;
   } else if( FD_UNLIKELY( opcode==0xA ) ) {
     /* Pong frame, ignore */
@@ -737,7 +738,10 @@ write_conn_ws( fd_http_server_t * http,
   struct fd_http_server_ws_connection * conn = &http->ws_conns[ conn_idx-http->max_conns ];
 
   if( FD_UNLIKELY( maybe_write_pong( http, conn_idx ) ) ) return;
-  if( FD_UNLIKELY( !conn->send_frame_cnt ) ) return;
+  if( FD_UNLIKELY( !conn->send_frame_cnt ) ) {
+    http->pollfds[ conn_idx ].events &= ~POLLOUT;
+    return;
+  }
 
   fd_http_server_ws_frame_t * frame = &conn->send_frames[ conn->send_frame_idx ];
   switch( conn->send_frame_state ) {
