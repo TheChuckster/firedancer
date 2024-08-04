@@ -577,6 +577,7 @@ fd_mux_tile( fd_cnc_t *              cnc,
     ulong                  this_in_seq   = this_in->seq;
     fd_frag_meta_t const * this_in_mline = this_in->mline; /* Already at appropriate line for this_in_seq */
 
+#if FD_HAS_SSE
     __m128i seq_sig = fd_frag_meta_seq_sig_query( this_in_mline );
 #if FD_USING_CLANG
     /* TODO: Clang optimizes extremely aggressively which breaks the
@@ -591,6 +592,9 @@ fd_mux_tile( fd_cnc_t *              cnc,
     __asm__( "" : "+x"(seq_sig) );
 #endif
     ulong seq_found = fd_frag_meta_sse0_seq( seq_sig );
+#else
+    ulong seq_found = this_in_mline->seq;
+#endif
 
     long diff = fd_seq_diff( this_in_seq, seq_found );
     if( FD_UNLIKELY( diff ) ) { /* Caught up or overrun, optimize for new frag case */
@@ -608,7 +612,11 @@ fd_mux_tile( fd_cnc_t *              cnc,
       continue;
     }
 
+#if FD_HAS_SSE
     ulong sig = fd_frag_meta_sse0_sig( seq_sig );
+#else
+    ulong sig = this_in_mline->sig;
+#endif
     if( FD_UNLIKELY( callbacks->before_frag ) ) {
       int filter = 0;
       callbacks->before_frag( ctx, (ulong)this_in->idx, seq_found, sig, &filter );

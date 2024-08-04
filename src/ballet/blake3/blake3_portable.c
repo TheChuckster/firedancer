@@ -84,6 +84,7 @@ INLINE void compress_pre(uint32_t state[16], const uint32_t cv[8],
   round_fn(state, &block_words[0], 6);
 }
 
+#if 0
 void blake3_compress_in_place_portable(uint32_t cv[8],
                                        const uint8_t block[BLAKE3_BLOCK_LEN],
                                        uint8_t block_len, uint64_t counter,
@@ -99,6 +100,7 @@ void blake3_compress_in_place_portable(uint32_t cv[8],
   cv[6] = state[6] ^ state[14];
   cv[7] = state[7] ^ state[15];
 }
+#endif
 
 void blake3_compress_xof_portable(const uint32_t cv[8],
                                   const uint8_t block[BLAKE3_BLOCK_LEN],
