@@ -1,6 +1,7 @@
 #include "fd_ghost.h"
 #include "stdio.h"
 #include <string.h>
+#include <signal.h>
 
 #pragma GCC diagnostic ignored "-Wformat"
 #pragma GCC diagnostic ignored "-Wformat-extra-args"
@@ -386,7 +387,8 @@ fd_ghost_replay_vote( fd_ghost_t * ghost, ulong slot, fd_pubkey_t const * pubkey
                       __func__,
                       node->stake,
                       latest_vote->stake ));
-    __asm__( "int $3" );
+    // __asm__( "int $3" );
+    raise(SIGTRAP);
   }
   fd_ghost_node_t * ancestor = node;
   while( ancestor->parent ) {
@@ -399,7 +401,8 @@ fd_ghost_replay_vote( fd_ghost_t * ghost, ulong slot, fd_pubkey_t const * pubkey
                         __func__,
                         ancestor->weight,
                         latest_vote->stake ));
-      __asm__( "int $3" );
+      // __asm__( "int $3" );
+      raise(SIGTRAP);
     }
     ancestor = ancestor->parent;
   }
@@ -414,7 +417,8 @@ fd_ghost_replay_vote( fd_ghost_t * ghost, ulong slot, fd_pubkey_t const * pubkey
           slot,
           node->stake,
           ghost->total_stake ) );
-    __asm__( "int $3" );
+    //__asm__( "int $3" );
+    raise(SIGTRAP);
   }
 #endif
 }

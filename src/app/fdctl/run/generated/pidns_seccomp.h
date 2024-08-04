@@ -36,7 +36,7 @@ static void populate_sock_filter_policy_pidns( ulong out_cnt, struct sock_filter
     /* allow fsync based on expression */
     BPF_JUMP( BPF_JMP | BPF_JEQ | BPF_K, SYS_fsync, /* check_fsync */ 8, 0 ),
     /* allow poll based on expression */
-    BPF_JUMP( BPF_JMP | BPF_JEQ | BPF_K, SYS_poll, /* check_poll */ 9, 0 ),
+    BPF_JUMP( BPF_JMP | BPF_JEQ | BPF_K, SYS_ppoll, /* check_poll */ 9, 0 ),
     /* allow wait4 based on expression */
     BPF_JUMP( BPF_JMP | BPF_JEQ | BPF_K, SYS_wait4, /* check_wait4 */ 10, 0 ),
     /* simply allow exit_group */

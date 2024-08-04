@@ -156,6 +156,8 @@ fd_bn254_miller_loop( fd_bn254_fp12_t *   f,
                       fd_bn254_g1_t const p[],
                       fd_bn254_g2_t const q[],
                       ulong               sz ) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
   /* https://github.com/Consensys/gnark-crypto/blob/v0.12.1/ecc/bn254/pairing.go#L121 */
   //TODO use more efficient muls
   const char s[] = {
@@ -168,6 +170,7 @@ fd_bn254_miller_loop( fd_bn254_fp12_t *   f,
     0,  1,  0, -1,  0,  0,  0, -1,
     0, -1,  0,  0,  0,  1,  0, -1, /* 0, 1 */
   };
+#pragma GCC diagnostic pop
 
   fd_bn254_g2_t t[FD_BN254_PAIRING_BATCH_MAX], frob[1];
   fd_bn254_fp12_t l[1];

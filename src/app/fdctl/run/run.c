@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <linux/capability.h>
 #include <linux/unistd.h>
+#include <linux/landlock.h>
 
 #include "../../../util/tile/fd_tile_private.h"
 

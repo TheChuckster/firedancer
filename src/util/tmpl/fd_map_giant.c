@@ -706,12 +706,14 @@ MAP_(delete)( void * shmap ) {
   return shmap;
 }
 
+#include <signal.h>
+
 static inline long
 MAP_(verify_key)( MAP_T *           join,
                   MAP_KEY_T const * key,
                   ulong             cnt ) {
 # define MAP_TEST(c) do {                                                        \
-    if( FD_UNLIKELY( !(c) ) ) { FD_LOG_WARNING(( "FAIL: %s", #c )); __asm("int $3"); return -1; } \
+    if( FD_UNLIKELY( !(c) ) ) { FD_LOG_WARNING(( "FAIL: %s", #c )); raise(SIGTRAP); return -1; } \
   } while(0)
 
   MAP_(private_t) * map = MAP_(private)( join );

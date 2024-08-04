@@ -1,5 +1,7 @@
 #include "fd_store.h"
 
+#include <signal.h>
+
 void *
 fd_store_new( void * mem, ulong lo_wmark_slot ) {
   if( FD_UNLIKELY( !mem ) ) {
@@ -254,7 +256,8 @@ fd_store_slot_repair( fd_store_t * store,
 
     if( repair_req_cnt >= out_repair_reqs_sz ) { 
       FD_LOG_WARNING(( "too many repair requests" ));
-      __asm__("int $3");
+      // __asm__("int $3");
+      raise(SIGTRAP);
     } 
     fd_repair_request_t * repair_req = &out_repair_reqs[repair_req_cnt++];
     repair_req->shred_index = 0;

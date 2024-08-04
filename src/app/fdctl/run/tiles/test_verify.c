@@ -1,6 +1,8 @@
 #include "fd_verify.h"
 #include "../../../../ballet/hex/fd_hex.h"
 
+#include <stdlib.h>
+
 static char *
 valid_txn_1sig[] = {
   "01",

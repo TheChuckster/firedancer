@@ -33,7 +33,7 @@ fi
 # Install prefix
 PREFIX="$(pwd)/opt"
 
-DEVMODE=0
+DEVMODE=1
 
 help () {
 cat <<EOF
@@ -105,7 +105,7 @@ fetch () {
   checkout_repo zstd      https://github.com/facebook/zstd          "v1.5.6"
   checkout_repo lz4       https://github.com/lz4/lz4                "v1.9.4"
   checkout_repo secp256k1 https://github.com/bitcoin-core/secp256k1 "v0.5.0"
-  #checkout_repo openssl   https://github.com/openssl/openssl        "openssl-3.3.1"
+  checkout_repo openssl   https://github.com/openssl/openssl        "openssl-3.3.1"
   if [[ $DEVMODE == 1 ]]; then
     checkout_repo zlib      https://github.com/madler/zlib            "v1.3.1"
     checkout_repo rocksdb   https://github.com/facebook/rocksdb       "v9.4.0"
@@ -138,7 +138,7 @@ check_fedora_pkgs () {
 }
 
 check_debian_pkgs () {
-  local REQUIRED_DEBS=( perl autoconf gettext automake autopoint flex bison build-essential gcc-multilib protobuf-compiler llvm lcov libgmp-dev libudev-dev cmake libclang-dev pkgconf )
+  local REQUIRED_DEBS=( perl autoconf gettext automake autopoint flex bison build-essential protobuf-compiler llvm lcov libgmp-dev libudev-dev cmake libclang-dev pkgconf )
 
   echo "[~] Checking for required DEB packages"
 
@@ -472,7 +472,7 @@ install () {
   ( install_zstd      )
   ( install_lz4       )
   ( install_secp256k1 )
-  #( install_openssl   )
+  ( install_openssl   )
   if [[ $DEVMODE == 1 ]]; then
     ( install_zlib      )
     ( install_snappy    )

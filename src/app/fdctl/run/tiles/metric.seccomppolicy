@@ -29,4 +29,4 @@ write
 close
 
 # server: serving metric values over HTTP requires polling conns
-poll
+ppoll

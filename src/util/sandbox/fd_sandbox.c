@@ -26,8 +26,8 @@
 #error "Target operating system is unsupported by seccomp."
 #endif
 
-#if !defined(__x86_64__)
-#error "Target architecture is unsupported by seccomp."
+#if !defined(__i386__) && !defined(__x86_64__) && !defined(__aarch64__)
+# error "Target architecture is unsupported by seccomp."
 #else
 
 #ifndef SYS_landlock_create_ruleset

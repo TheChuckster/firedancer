@@ -41,8 +41,8 @@ static void populate_sock_filter_policy_metric( ulong out_cnt, struct sock_filte
     BPF_JUMP( BPF_JMP | BPF_JEQ | BPF_K, SYS_write, /* RET_ALLOW */ 12, 0 ),
     /* simply allow close */
     BPF_JUMP( BPF_JMP | BPF_JEQ | BPF_K, SYS_close, /* RET_ALLOW */ 11, 0 ),
-    /* simply allow poll */
-    BPF_JUMP( BPF_JMP | BPF_JEQ | BPF_K, SYS_poll, /* RET_ALLOW */ 10, 0 ),
+    /* simply allow ppoll */
+    BPF_JUMP( BPF_JMP | BPF_JEQ | BPF_K, SYS_ppoll, /* RET_ALLOW */ 10, 0 ),
     /* none of the syscalls matched */
     { BPF_JMP | BPF_JA, 0, 0, /* RET_KILL_PROCESS */ 8 },
 //  check_fsync:
