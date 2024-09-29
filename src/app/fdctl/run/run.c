@@ -339,7 +339,9 @@ main_pid_namespace( void * _args ) {
      a group.  The parent process will also die if this process dies,
      due to getting SIGHUP on the pipe. */
   while( 1 ) {
-    if( FD_UNLIKELY( -1==poll( fds, 1+child_cnt, -1 ) ) ) FD_LOG_ERR(( "poll() failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+    if( FD_UNLIKELY( -1==ppoll( fds, 1+child_cnt, NULL, NULL ) ) ) {
+      FD_LOG_ERR(( "ppoll() failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+    }
 
     for( ulong i=0; i<1+child_cnt; i++ ) {
       if( FD_UNLIKELY( fds[ i ].revents ) ) {

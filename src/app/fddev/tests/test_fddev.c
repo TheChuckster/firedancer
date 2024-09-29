@@ -118,7 +118,8 @@ wait_children( struct child_info * children,
     };
   }
 
-  int exited_child_cnt = poll( pfd, children_cnt, (int)(timeout_seconds*1000UL*1000UL) );
+  struct timespec timeSpec = { timeout_seconds, 0 }; /* sec, nanosec */
+  int exited_child_cnt = ppoll( pfd, children_cnt, &timeSpec, NULL );
   if( FD_UNLIKELY( -1==exited_child_cnt ) ) FD_LOG_ERR(( "poll failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   if( FD_UNLIKELY( !exited_child_cnt ) ) FD_LOG_ERR(( "`%s` timed out", children[ 0 ].name ));
 

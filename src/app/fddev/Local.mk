@@ -34,7 +34,7 @@ endif
 ifeq (run,$(firstword $(MAKECMDGOALS)))
   RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
   ifeq ($(RUN_ARGS),)
-    RUN_ARGS := dev --monitor
+    RUN_ARGS := dev --monitor --log-path -
   endif
   $(eval $(RUN_ARGS):;@:)
 endif

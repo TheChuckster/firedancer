@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "fd_rpc_client.h"
 #include "fd_rpc_client_private.h"
 
@@ -13,6 +15,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/ip.h>
+#include <time.h>
+#include <poll.h>
 
 #define MAX_REQUEST_LEN (1024UL)
 
@@ -66,7 +70,8 @@ fd_rpc_client_wait_ready( fd_rpc_client_t * rpc,
         return FD_RPC_CLIENT_ERR_NETWORK;
       }
 
-      int nfds = poll( &pfd, 1, (int)((now-start) / 1000000) );
+      struct timespec timeSpec = { ((now-start) / 1000000000), ((now-start) % 1000000000) }; /* sec, nanosec */
+      int nfds = ppoll( &pfd, 1, &timeSpec, NULL );
       if( FD_UNLIKELY( 0==nfds ) ) continue;
       else if( FD_UNLIKELY( -1==nfds && errno==EINTR ) ) continue;
       else if( FD_UNLIKELY( -1==nfds ) ) {
@@ -280,8 +285,8 @@ parse_response( char *                     response,
 void
 fd_rpc_client_service( fd_rpc_client_t * rpc,
                        int               wait ) {
-  int timeout = wait ? -1 : 0;
-  int nfds = poll( rpc->fds, FD_RPC_CLIENT_REQUEST_CNT, timeout );
+  struct timespec timeSpec = { 0, 0 }; /* sec, nanosec */
+  int nfds = ppoll( rpc->fds, FD_RPC_CLIENT_REQUEST_CNT, wait ? NULL : &timeSpec, NULL );
   if( FD_UNLIKELY( 0==nfds ) ) return;
   else if( FD_UNLIKELY( -1==nfds && errno==EINTR ) ) return;
   else if( FD_UNLIKELY( -1==nfds ) ) FD_LOG_ERR(( "poll failed (%i-%s)", errno, strerror( errno ) ));

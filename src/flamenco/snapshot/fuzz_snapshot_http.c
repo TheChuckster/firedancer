@@ -6,6 +6,8 @@
    server-side of the snapshot downloader.  Communication runs over an
    unnamed AF_UNIX socket pair. */
 
+#define _GNU_SOURCE
+
 #include <assert.h>
 #include <errno.h>
 #include <poll.h>
@@ -14,6 +16,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <threads.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "../../util/sanitize/fd_fuzz.h"
@@ -63,7 +66,8 @@ target_task( void * ctx ) {
         FD_FUZZ_MUST_BE_COVERED;
         /* Did we consume all bytes? */
         struct pollfd pfd[1] = {{.fd=socket, .events=(short)POLLIN}};
-        poll( pfd, 1, 0 );
+        struct timespec timeSpec = { 0, 0 }; /* sec, nanosec */
+        ppoll( pfd, 1, &timeSpec, NULL );
         stop = pfd[0].revents==0;
       }
       break;
@@ -99,9 +103,10 @@ io_task( int            sock,
 
   for(;;) {
     struct pollfd pfd[1] = {{.fd=sock, .events=(short)event_interest}};
-    if( FD_UNLIKELY( poll( pfd, 1, 0 )<0 ) ) {
+    struct timespec timeSpec = { 0, 0 }; /* sec, nanosec */
+    if( FD_UNLIKELY( ppoll( pfd, 1, &timespec, NULL )<0 ) ) {
       if( errno!=EINTR )
-      FD_LOG_ERR(( "poll() failed (%d-%s)", errno, fd_io_strerror( errno ) ));
+      FD_LOG_ERR(( "ppoll() failed (%d-%s)", errno, fd_io_strerror( errno ) ));
         break;
     }
 

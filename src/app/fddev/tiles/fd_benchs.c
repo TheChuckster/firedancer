@@ -110,12 +110,13 @@ service_quic( fd_benchs_ctx_t * ctx ) {
     /* Publishes to mcache via callbacks */
 
     /* receive from socket, and pass to quic */
-    int poll_rc = poll( ctx->poll_fd, ctx->conn_cnt, 0 );
+    struct timespec timeSpec = { 0, 0 }; /* sec, nanosec */
+    int poll_rc = ppoll( ctx->poll_fd, ctx->conn_cnt, &timeSpec, NULL );
     if( FD_LIKELY( poll_rc == 0 ) ) {
       return;
     } if( FD_UNLIKELY( poll_rc == -1 ) ) {
       if( FD_UNLIKELY( errno == EINTR ) ) return; /* will try later */
-      FD_LOG_ERR(( "Error occurred during poll: %d %s", errno,
+      FD_LOG_ERR(( "Error occurred during ppoll: %d %s", errno,
             strerror( errno ) ));
     }
 

@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "../../../../disco/tiles.h"
 
 #include "generated/metric_seccomp.h"
@@ -12,6 +14,7 @@
 #include <string.h>
 #include <poll.h>
 #include <stdio.h>
+#include <time.h>
 
 #define MAX_CONNS 128
 
@@ -403,10 +406,13 @@ before_credit( void *             _ctx,
 
   fd_metric_ctx_t * ctx = (fd_metric_ctx_t *)_ctx;
 
-  int nfds = poll( ctx->fds, MAX_CONNS+1, 0 );
+  struct timespec timeSpec = { 0, 0 }; /* sec, nanosec */
+  int nfds = ppoll( ctx->fds, MAX_CONNS+1, &timeSpec, NULL );
   if( FD_UNLIKELY( 0==nfds ) ) return;
   else if( FD_UNLIKELY( -1==nfds && errno==EINTR ) ) return;
-  else if( FD_UNLIKELY( -1==nfds ) ) FD_LOG_ERR(( "poll failed (%i-%s)", errno, strerror( errno ) ));
+  else if( FD_UNLIKELY( -1==nfds ) ) {
+    FD_LOG_ERR(( "ppoll failed (%i-%s)", errno, strerror( errno ) ));
+  }
 
   /* Poll existing connections for new data. */
   for( ulong i=0; i<MAX_CONNS+1; i++ ) {
