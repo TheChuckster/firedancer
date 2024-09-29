@@ -528,6 +528,7 @@ fd_sandbox_private_landlock_restrict_self( void ) {
   if( syscall( SYS_landlock_restrict_self, landlock_fd, 0 ) ) FD_LOG_ERR(( "landlock_restrict_self() failed (%i-%s)", errno, fd_io_strerror( errno ) ));
 }
 
+#if 0
 void
 fd_sandbox_private_set_seccomp_filter( ushort               seccomp_filter_cnt,
                                        struct sock_filter * seccomp_filter ) {
@@ -538,6 +539,7 @@ fd_sandbox_private_set_seccomp_filter( ushort               seccomp_filter_cnt,
 
   if( syscall( SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0, &program ) ) FD_LOG_ERR(( "seccomp() failed (%i-%s)", errno, fd_io_strerror( errno ) ) );
 }
+#endif
 
 ulong
 fd_sandbox_private_read_cap_last_cap( void ) {
@@ -673,6 +675,8 @@ fd_sandbox_enter( uint                 desired_uid,
                   struct sock_filter * seccomp_filter ) {
   if( seccomp_filter_cnt>USHORT_MAX ) FD_LOG_ERR(( "seccomp_filter_cnt must not be more than %u", USHORT_MAX ));
 
+  (void)seccomp_filter;
+
   fd_sandbox_private_enter_no_seccomp( desired_uid,
                                        desired_gid,
                                        keep_controlling_terminal,
@@ -683,7 +687,7 @@ fd_sandbox_enter( uint                 desired_uid,
   FD_LOG_INFO(( "sandbox: full sandbox is being enabled" )); /* log before seccomp in-case logging not allowed in sandbox */
 
   /* Now finally install the seccomp-bpf filter. */
-  fd_sandbox_private_set_seccomp_filter( (ushort)seccomp_filter_cnt, seccomp_filter );
+  // fd_sandbox_private_set_seccomp_filter( (ushort)seccomp_filter_cnt, seccomp_filter );
 }
 
 void
